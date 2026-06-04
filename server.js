@@ -46,75 +46,143 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
     }
 
     try {
-        const cleanUrl = value.channel_url
-            .replace(/\/$/, '');
+        const cleanUrl = value.channel_url.replace(/\/$/, '');
+        
+        // Kanal ana sayfasını çek
+        let html = await fetchFromWorker(cleanUrl);
 
-        const html = await fetchFromWorker(cleanUrl);
-
+        // Kanal başlığı
         const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+        const channelTitle = titleMatch ? titleMatch[1].replace(' - YouTube', '').trim() : 'YouTube Kanalı';
 
-        const descriptionMatch =
-            html.match(/"description":"([^"]+)"/);
+        // Kanal açıklaması - daha kapsamlı regex
+        let channelDescription = 'Açıklama bulunamadı.';
+        const descMatches = [
+            html.match(/"description":\{"simpleText":"([^"]+)"\}/),
+            html.match(/"description":"([^"]+)"/),
+            html.match(/<meta name="description" content="([^"]+)"/)
+        ];
+        for (const match of descMatches) {
+            if (match && match[1]) {
+                channelDescription = match[1].replace(/\\n/g, ' ').replace(/\\/g, '');
+                break;
+            }
+        }
 
-        const avatarMatch =
-            html.match(/"avatar":{"thumbnails":\[\{"url":"([^"]+)/);
+        // Avatar resmi
+        let avatarUrl = 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png';
+        const avatarMatches = [
+            html.match(/"avatar":\{"thumbnails":\[\{"url":"([^"]+)"/),
+            html.match(/"channelBannerHeaderRenderer":\{"image":\{"thumbnails":\[\{"url":"([^"]+)"/),
+            html.match(/"width":88,"height":88\},"url":"([^"]+)"/)
+        ];
+        for (const match of avatarMatches) {
+            if (match && match[1]) {
+                avatarUrl = match[1].replace(/\\u0026/g, '&').replace(/\\/g, '');
+                break;
+            }
+        }
 
-        const subscriberMatch =
-            html.match(/"subscriberCountText":\{"simpleText":"([^"]+)/);
+        // Abone sayısı - çok daha kapsamlı regex setleri
+        let subscriberCount = 'Gizli veya Bilinmiyor';
+        const subMatches = [
+            html.match(/"subscriberCountText":\{"accessibility":\{"accessibilityData":\{"label":"([^"]+)"/),
+            html.match(/"subscriberCountText":\{"simpleText":"([^"]+)"/),
+            html.match(/"subscriberCountText":\{"runs":\[\{"text":"([^"]+)"/),
+            html.match(/(\d+[\.,]?\d*[KMB]?) abone/i),
+            html.match(/(\d+[\.,]?\d*[KMB]?) subscriber/i)
+        ];
+        for (const match of subMatches) {
+            if (match && match[1]) {
+                subscriberCount = match[1].trim();
+                break;
+            }
+        }
 
-        const videoRegex =
-            /"videoId":"([a-zA-Z0-9_-]{11})"/g;
+        // Toplam video sayısı
+        let totalVideosCount = 0;
+        const videoCountMatches = [
+            html.match(/"videosCountText":\{"runs":\[\{"text":"([^"]+)"\}/),
+            html.match(/(\d+[\.,]?\d*) video/i)
+        ];
+        for (const match of videoCountMatches) {
+            if (match && match[1]) {
+                const numStr = match[1].replace(/[^\d]/g, '');
+                totalVideosCount = parseInt(numStr) || 0;
+                break;
+            }
+        }
 
-        const videos = [];
-        const seen = new Set();
-
+        // Videoları çek - TÜM VİDEOLARI
+        const videoRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
+        const videoDetailsMap = new Map();
         let match;
 
+        // Video ID'lerini topla
         while ((match = videoRegex.exec(html)) !== null) {
             const id = match[1];
-
-            if (seen.has(id)) continue;
-            seen.add(id);
-
-            videos.push({
-                id,
-                title: `Video ${videos.length + 1}`,
-                thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-                url: `https://www.youtube.com/watch?v=${id}`
-            });
-
-            if (videos.length >= 12) break;
+            if (!videoDetailsMap.has(id)) {
+                videoDetailsMap.set(id, { id });
+            }
         }
+
+        console.log(`✅ ${videoDetailsMap.size} benzersiz video ID bulundu`);
+
+        // Video başlıklarını ve thumbnailleri çıkar
+        const titleRegex = /"videoId":"([a-zA-Z0-9_-]{11})"[^}]*"title":\{"runs":\[\{"text":"([^"]+)"\}\]/g;
+        const titleSimpleRegex = /"videoId":"([a-zA-Z0-9_-]{11})"[^}]*"title":\{"simpleText":"([^"]+)"\}/g;
+        
+        let titleMatch;
+        while ((titleMatch = titleRegex.exec(html)) !== null) {
+            const [, videoId, title] = titleMatch;
+            if (videoDetailsMap.has(videoId)) {
+                const video = videoDetailsMap.get(videoId);
+                video.title = title.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+            }
+        }
+
+        while ((titleMatch = titleSimpleRegex.exec(html)) !== null) {
+            const [, videoId, title] = titleMatch;
+            if (videoDetailsMap.has(videoId) && !videoDetailsMap.get(videoId).title) {
+                const video = videoDetailsMap.get(videoId);
+                video.title = title.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+            }
+        }
+
+        // Video listesini oluştur
+        const videos = Array.from(videoDetailsMap.values()).map((video, index) => ({
+            id: video.id,
+            title: video.title || `Video ${index + 1}`,
+            thumbnail: `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`,
+            url: `https://www.youtube.com/watch?v=${video.id}`
+        }));
+
+        // Eğer toplam video sayısı bulunamadıysa, çekilen video sayısını kullan
+        if (totalVideosCount === 0) {
+            totalVideosCount = videos.length;
+        }
+
+        console.log(`📊 Kanal: ${channelTitle}`);
+        console.log(`👥 Aboneler: ${subscriberCount}`);
+        console.log(`🎬 Toplam Video: ${totalVideosCount}`);
+        console.log(`📹 Çekilen Video: ${videos.length}`);
 
         res.json({
             success: true,
             channel_info: {
                 id: "youtube-channel",
-                title: titleMatch
-                    ? titleMatch[1].replace(' - YouTube', '')
-                    : 'YouTube Kanalı',
-
-                description: descriptionMatch
-                    ? descriptionMatch[1]
-                    : 'Açıklama bulunamadı.',
-
-                subscriber_count: subscriberMatch
-                    ? subscriberMatch[1]
-                    : 'Gizli veya Bilinmiyor',
-
-                total_videos_count: videos.length,
-
-                avatar: avatarMatch
-                    ? avatarMatch[1].replace(/\\u0026/g, '&')
-                    : 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png'
+                title: channelTitle,
+                description: channelDescription,
+                subscriber_count: subscriberCount,
+                total_videos_count: totalVideosCount,
+                fetched_videos_count: videos.length,
+                avatar: avatarUrl
             },
-
             videos
         });
 
     } catch (e) {
-        console.error(e);
-
+        console.error('❌ Hata:', e);
         res.status(500).json({
             detail: e.message
         });

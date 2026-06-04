@@ -166,25 +166,31 @@
             if(!res.ok) throw new Error(data.detail || 'Kanal bulunamadı.');
 
             // Kanal Bilgilerini Bas
+            const desc = data.channel_info.description || 'Açıklama bulunamadı.';
+            const descPreview = desc.length > 180 ? desc.substring(0, 180) + '...' : desc;
+            
             document.getElementById('channelCardContainer').innerHTML = `
                 <div class="channel-card">
-                    <img class="channel-avatar" src="${data.channel_info.avatar}" alt="avatar">
+                    <img class="channel-avatar" src="${data.channel_info.avatar}" alt="avatar" onerror="this.src='https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png'">
                     <div class="channel-details">
                         <h2>${data.channel_info.title}</h2>
-                        <p>${data.channel_info.description.substring(0, 180)}...</p>
+                        <p>${descPreview}</p>
                         <div class="stats-row">
                             <div class="stat-box"><span>Aboneler</span><strong>${data.channel_info.subscriber_count}</strong></div>
-                            <div class="stat-box"><span>Taranan Video</span><strong>${data.channel_info.total_videos_count}</strong></div>
+                            <div class="stat-box"><span>Toplam Video</span><strong>${data.channel_info.total_videos_count}</strong></div>
+                            <div class="stat-box"><span>Çekilen Video</span><strong>${data.channel_info.fetched_videos_count || data.videos.length}</strong></div>
                         </div>
                     </div>
                 </div>
             `;
 
             // Videoları listele
-            const listHtml = data.videos.map(v => `
+            const listHtml = data.videos.map((v, idx) => `
                 <div class="video-item" onclick="getDetailedAnalysis('${v.id}')">
-                    <img src="${v.thumbnail}" alt="thumb">
-                    <div class="video-item-title">${v.title}</div>
+                    <img src="${v.thumbnail}" alt="thumb" onerror="this.src='https://i.ytimg.com/vi/${v.id}/hqdefault.jpg'">
+                    <div>
+                        <div class="video-item-title">${v.title || 'Video ' + (idx + 1)}</div>
+                    </div>
                 </div>
             `).join('');
             
