@@ -17,6 +17,16 @@ const YT_DLP_PATH = fs.existsSync(path.join(process.cwd(), 'bin', 'yt-dlp'))
     ? path.join(process.cwd(), 'bin', 'yt-dlp') 
     : 'yt-dlp';
 
+// CRITICAL FIX: EACCES (Permission Denied) hatasını engellemek için runtime'da çalıştırma iznini zorla (chmod 755)
+if (YT_DLP_PATH !== 'yt-dlp') {
+    try {
+        fs.chmodSync(YT_DLP_PATH, '755');
+        console.log('🛡️ [Aerys Engine] yt-dlp binary çalışma izinleri (755) başarıyla doğrulandı.');
+    } catch (err) {
+        console.error('⚠️ [Aerys Engine] Çalıştırma izni verilirken hata oluştu:', err.message);
+    }
+}
+
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
         execFile(YT_DLP_PATH, args, { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
