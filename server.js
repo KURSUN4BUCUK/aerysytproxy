@@ -132,17 +132,17 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
         const titleRegex = /"videoId":"([a-zA-Z0-9_-]{11})"[^}]*"title":\{"runs":\[\{"text":"([^"]+)"\}\]/g;
         const titleSimpleRegex = /"videoId":"([a-zA-Z0-9_-]{11})"[^}]*"title":\{"simpleText":"([^"]+)"\}/g;
         
-        let titleMatch;
-        while ((titleMatch = titleRegex.exec(html)) !== null) {
-            const [, videoId, title] = titleMatch;
+        let videoTitleMatch;
+        while ((videoTitleMatch = titleRegex.exec(html)) !== null) {
+            const [, videoId, title] = videoTitleMatch;
             if (videoDetailsMap.has(videoId)) {
                 const video = videoDetailsMap.get(videoId);
                 video.title = title.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
             }
         }
 
-        while ((titleMatch = titleSimpleRegex.exec(html)) !== null) {
-            const [, videoId, title] = titleMatch;
+        while ((videoTitleMatch = titleSimpleRegex.exec(html)) !== null) {
+            const [, videoId, title] = videoTitleMatch;
             if (videoDetailsMap.has(videoId) && !videoDetailsMap.get(videoId).title) {
                 const video = videoDetailsMap.get(videoId);
                 video.title = title.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
