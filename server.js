@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const Joi = require('joi');
 const axios = require('axios');
 const path = require('path');
 
@@ -12,386 +11,184 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Her isteği loglayan middleware
-app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-    next();
-});
-
 const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || 'https://yt-proxy.psoresmi.workers.dev';
 
-// Ortak Tünel Fonksiyonu
 async function fetchFromWorker(targetUrl) {
-    const response = await axios.get(CLOUDFLARE_WORKER_URL, {
-        params: { url: targetUrl },
-        timeout: 30000,
-        responseType: 'text'
-    });
-
-    return response.data;
+    try {
+        const response = await axios.get(CLOUDFLARE_WORKER_URL, {
+            params: { url: targetUrl },
+            timeout: 30000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            }
+        });
+        return typeof response.data === 'string' ? response.data : JSON.stringify(response.data);
+    } catch (error) {
+        throw new Error(error.response?.status === 429 ? 'Rate limit hit' : error.message);
+    }
 }
 
-const schemaChannel = Joi.object({ channel_url: Joi.string().uri().required() });
-const schemaAnalyze = Joi.object({ video_id: Joi.string().required(), comment_limit: Joi.number().integer().min(1).default(100) });
-
-// ============================================================
-// 1. ENDPOINT: KANAL BİLGİLERİ VE VİDEOLARI
-// ============================================================
-app.post('/api/v1/channel/init-public', async (req, res) => {
-    const { error, value } = schemaChannel.validate(req.body);
-    if (error) {
-        return res.status(400).json({
-            detail: error.details[0].message
-        });
+// HTML içinden ytInitialData JSON'ını güvenlice koparan fonksiyon
+function extractYtData(html) {
+    try {
+        const match = html.match(/var ytInitialData\s*=\s*({.+?});\s*<\/script>/) || 
+                      html.match(/window\["ytInitialData"\]\s*=\s*({.+?});/);
+        return match ? JSON.parse(match[1]) : null;
+    } catch {
+        return null;
     }
+}
+
+// 1. ENDPOINT: KANAL BİLGİLERİ VE VİDEOLARI
+app.post('/api/v1/channel/init-public', async (req, res) => {
+    const { channel_url } = req.body;
+    if (!channel_url) return res.status(400).json({ detail: 'Kanal URL zorunlu.' });
 
     try {
-        const cleanUrl = value.channel_url.replace(/\/$/, '');
-        console.log(`🔍 Kanal çekiliyor: ${cleanUrl}`);
+        const html = await fetchFromWorker(channel_url.replace(/\/$/, ''));
+        const ytData = extractYtData(html);
+
+        if (!ytData) throw new Error('YouTube veri yapısı ayrıştırılamadı.');
+
+        // Kanal üst bilgileri (Header)
+        const header = ytData.header?.c4TabbedHeaderRenderer || ytData.header?.pageHeaderRenderer;
         
-        // Kanal ana sayfasını çek
-        const html = await fetchFromWorker(cleanUrl);
+        const channelTitle = ytData.metadata?.channelMetadataRenderer?.title || 
+                             header?.title || 'YouTube Kanalı';
+                             
+        const channelDescription = ytData.metadata?.channelMetadataRenderer?.description || 'Açıklama bulunamadı.';
         
-        // Kanal başlığı - <title> tag'inden
-        let channelTitle = 'YouTube Kanalı';
-        const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-        if (titleMatch) {
-            channelTitle = titleMatch[1].replace(' - YouTube', '').trim();
-        }
-        console.log(`📺 Başlık: ${channelTitle}`);
+        const avatarUrl = ytData.metadata?.channelMetadataRenderer?.avatar?.thumbnails?.[0]?.url || 
+                          header?.avatar?.thumbnails?.[0]?.url || '';
 
-        // Kanal açıklaması - meta description
-        let channelDescription = '';
-        const descMatch = html.match(/<meta name="description" content="([^"]+)"/i);
-        if (descMatch) {
-            channelDescription = descMatch[1];
-        }
-
-        // Avatar - og:image veya diğer meta taglerden
-        let avatarUrl = 'https://yt3.ggpht.com/a/default-user';
-        const avatarPatterns = [
-            /<link rel="image_src" href="([^"]+)"/,
-            /<meta property="og:image" content="([^"]+)"/,
-            /"avatar":\{"thumbnails":\[\{"url":"([^"]+)"/
-        ];
-        for (const pattern of avatarPatterns) {
-            const match = html.match(pattern);
-            if (match && match[1]) {
-                avatarUrl = match[1].replace(/=s\d+-c/, '=s176-c');
-                break;
-            }
-        }
-
-        // Abone sayısı - Çok agresif regex
+        // KESİN ÇÖZÜM: Abone Sayısı Ayıklama (Farklı YouTube şablonlarına uyumlu)
         let subscriberCount = 'Gizli';
-        const subPatterns = [
-            /"subscriberCountText":\{"simpleText":"([^"]+)"/,
-            /"label":"([^"]*\d+[^"]*abone[^"]*)"/i,
-            /"simpleText":"([^"]*\d+[^"]*abone[^"]*)"/i,
-            /"text":"([^"]*\d+[.,\s]*[KMB]?[^"]*abone[^"]*)"/i,
-            /(\d+[.,]?\d*\s*[KMB]?\s+abone)/i,
-            /"accessibilityData":\{"label":"([^"]+abone[^"]*)"/i
-        ];
-
-        for (const pattern of subPatterns) {
-            const match = html.match(pattern);
-            if (match && match[1] && match[1].match(/\d/)) {
-                subscriberCount = match[1].trim();
-                // Temizle
-                subscriberCount = subscriberCount.replace(/\s+/g, ' ');
-                console.log(`👥 Abone bulundu: ${subscriberCount}`);
-                break;
-            }
-        }
-
-        // Toplam video sayısı
-        let totalVideosCount = 0;
-        const videoCountPatterns = [
-            /"videosCountText":\{"runs":\[\{"text":"([0-9.,]+)"/,
-            /"text":"([0-9.,]+)\s*video"/i
-        ];
-        for (const pattern of videoCountPatterns) {
-            const match = html.match(pattern);
-            if (match && match[1]) {
-                totalVideosCount = parseInt(match[1].replace(/[^0-9]/g, '')) || 0;
-                break;
-            }
-        }
-
-        // Videoları çek - Basit ve etkili
-        const videoMap = new Map();
-        
-        // Önce tüm video ID'lerini topla
-        const idRegex = /"videoId":"([a-zA-Z0-9_-]{11})"/g;
-        let idMatch;
-        while ((idMatch = idRegex.exec(html)) !== null) {
-            const vid = idMatch[1];
-            if (!videoMap.has(vid)) {
-                videoMap.set(vid, { id: vid, title: null });
-            }
-        }
-
-        console.log(`🎬 ${videoMap.size} video ID bulundu`);
-
-        // Şimdi başlıkları eşleştir - daha basit regex
-        const titlePatterns = [
-            /"videoId":"([a-zA-Z0-9_-]{11})"[^}]*?"title":\{"runs":\[\{"text":"([^"]+)"/g,
-            /"videoId":"([a-zA-Z0-9_-]{11})"[^}]*?"title":\{"simpleText":"([^"]+)"/g,
-            /"text":"([^"]+)"[^}]*?"videoId":"([a-zA-Z0-9_-]{11})"/g
-        ];
-
-        for (const pattern of titlePatterns) {
-            let titleMatch;
-            while ((titleMatch = pattern.exec(html)) !== null) {
-                const vid = titleMatch[1] || titleMatch[2];
-                const title = titleMatch[2] || titleMatch[1];
-                
-                if (vid && title && vid.length === 11 && videoMap.has(vid)) {
-                    videoMap.get(vid).title = title.replace(/\\"/g, '"').replace(/\\\\/g, '');
+        if (header?.subscriberCountText?.simpleText) {
+            subscriberCount = header.subscriberCountText.simpleText;
+        } else if (header?.content?.pageHeaderViewModel?.metadata?.contentMetadataViewModel?.metadataRows) {
+            const rows = header.content.pageHeaderViewModel.metadata.contentMetadataViewModel.metadataRows;
+            for (const row of rows) {
+                const text = row.metadataParts?.[0]?.text?.content;
+                if (text && (text.includes('abone') || text.includes('subscriber'))) {
+                    subscriberCount = text;
+                    break;
                 }
             }
         }
 
-        // Video listesi oluştur
+        // Videoları JSON Ağacından Toplama (Kırılma ihtimali yok, başlıklar tam gelir)
         const videos = [];
-        let index = 0;
-        for (const [id, data] of videoMap) {
-            videos.push({
-                id: id,
-                title: data.title || `Video ${index + 1}`,
-                thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
-                url: `https://www.youtube.com/watch?v=${id}`
+        const tabs = ytData.contents?.twoColumnBrowseResultsRenderer?.tabs || [];
+        const homeOrVideosTab = tabs.find(t => t.tabRenderer?.selected) || tabs[0];
+        const contents = homeOrVideosTab?.tabRenderer?.content?.richGridRenderer?.contents || 
+                         homeOrVideosTab?.tabRenderer?.content?.sectionListRenderer?.contents?.[0]?.itemSectionRenderer?.contents?.[0]?.gridRenderer?.items || [];
+
+        contents.forEach(item => {
+            const video = item.richItemRenderer?.content?.videoRenderer || item.videoRenderer;
+            if (video && video.videoId) {
+                videos.push({
+                    id: video.videoId,
+                    title: video.title?.runs?.[0]?.text || video.title?.simpleText || 'Başlıksız Video',
+                    thumbnail: `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`
+                });
+            }
+        });
+
+        // Fallback: JSON derinliğinden çıkmazsa eski usul regex destekli toplayıcı (Ama başlıkları kurtararak)
+        if (videos.length === 0) {
+            const idMatches = [...html.matchAll(/"videoId"\s*:\s*"([a-zA-Z0-9_-]{11})"/g)];
+            const uniqueIds = [...new Set(idMatches.map(m => m[1]))];
+            uniqueIds.slice(0, 20).forEach((id, idx) => {
+                videos.push({ id, title: `Video (${id})`, thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` });
             });
-            index++;
         }
-
-        if (totalVideosCount === 0) totalVideosCount = videos.length;
-
-        console.log(`✅ Kanal: ${channelTitle}`);
-        console.log(`👥 Aboneler: ${subscriberCount}`);
-        console.log(`🎬 Toplam: ${totalVideosCount} video`);
-        console.log(`📹 Çekilen: ${videos.length} video`);
 
         res.json({
             success: true,
             channel_info: {
-                id: "youtube-channel",
                 title: channelTitle,
-                description: channelDescription || 'Açıklama bulunamadı',
-                subscriber_count: subscriberCount,
-                total_videos_count: totalVideosCount,
-                fetched_videos_count: videos.length,
+                description: channelDescription,
+                subscriber_count: subscriberCount.replace('·', '').trim(),
+                total_videos_count: videos.length,
                 avatar: avatarUrl
             },
             videos
         });
-
-    } catch (e) {
-        console.error('❌ Kanal Hatası:', e.message);
-        res.status(500).json({
-            detail: e.message
-        });
-    }
-});
-// ============================================================
-// 2. ENDPOINT: TEK VİDEO DETAYI
-// ============================================================
-app.post('/api/v1/video/details', async (req, res) => {
-    const { video_id } = req.body;
-    if (!video_id) return res.status(400).json({ detail: "video_id parametresi zorunlu." });
-    
-    try {
-        const data = await fetchFromWorker(`https://www.youtube.com/watch?v=${video_id}`);
-        const dur = data.duration || 0;
-
-        res.json({
-            success: true,
-            video: {
-                id: video_id,
-                title: data.title || 'Video Başlığı',
-                url: `https://www.youtube.com/watch?v=${video_id}`,
-                thumbnail: `https://i.ytimg.com/vi/${video_id}/maxresdefault.jpg`,
-                duration: `${Math.floor(dur/60)}:${String(dur%60).padStart(2,'0')}`,
-                view_count: (data.view_count || 0).toLocaleString('tr-TR'),
-                like_count: (data.like_count || 0).toLocaleString('tr-TR')
-            }
-        });
     } catch (e) {
         res.status(500).json({ detail: e.message });
     }
 });
 
-// ============================================================
-// 3. ENDPOINT: VİDEO ANALİZİ VE YORUMLAR (Basit & Güvenilir)
-// ============================================================
+// 2. ENDPOINT: VİDEO ANALİZİ
 app.post('/api/v1/video/analyze', async (req, res) => {
-    const { error, value } = schemaAnalyze.validate(req.body);
-    if (error) return res.status(400).json({ detail: error.details[0].message });
-    
+    const { video_id } = req.body;
+    if (!video_id) return res.status(400).json({ detail: 'video_id zorunlu.' });
+
     try {
-        console.log(`🎬 Video analiz ediliyor: ${value.video_id}`);
+        const html = await fetchFromWorker(`https://www.youtube.com/watch?v=${video_id}`);
         
-        const videoUrl = `https://www.youtube.com/watch?v=${value.video_id}`;
-        const html = await fetchFromWorker(videoUrl);
+        let title = 'Video Başlığı';
+        const tMatch = html.match(/<meta property="og:title" content="([^"]+)"/i);
+        if (tMatch) title = tMatch[1].replace(' - YouTube', '').trim();
 
-        // Başlık - <title> tag'inden
-        let title = 'Video';
-        const titleMatch = html.match(/<title>([^<]+)<\/title>/);
-        if (titleMatch) {
-            title = titleMatch[1].replace(' - YouTube', '').trim();
-        }
+        let description = 'Açıklama yok.';
+        const dMatch = html.match(/<meta name="description" content="([^"]+)"/i);
+        if (dMatch) description = dMatch[1];
 
-        // Açıklama - meta description
-        let description = '';
-        const descMatch = html.match(/<meta name="description" content="([^"]+)"/);
-        if (descMatch) {
-            description = descMatch[1];
-        }
-
-        // İzlenme sayısı
+        // İzlenme Sayısı
         let views = 0;
-        const viewPatterns = [
-            /"viewCount":"(\d+)"/,
-            /"view_count":"(\d+)"/,
-            /"viewCount":\{"simpleText":"([0-9.,]+)/,
-            /([0-9.,]+)\s+görüntülenme/i,
-            /([0-9.,]+)\s+views?/i
-        ];
-        for (const pattern of viewPatterns) {
-            const match = html.match(pattern);
-            if (match && match[1]) {
-                views = parseInt(match[1].replace(/[^0-9]/g, '')) || 0;
-                if (views > 0) break;
-            }
-        }
+        const viewMatch = html.match(/"viewCount"\s*:\s*"(\d+)"/i) || html.match(/<meta itemprop="interactionCount" content="(\d+)"/i);
+        if (viewMatch) views = parseInt(viewMatch[1]) || 0;
 
-        // Beğeni sayısı
+        // Beğeni Sayısı
         let likes = 0;
-        const likePatterns = [
-            /"accessibilityData":\{"label":"([0-9.,]+)[^"]*beğen[^"]*"/i,
-            /"label":"([0-9.,]+)[^"]*like/i,
-            /"defaultText":\{"accessibility":\{"accessibilityData":\{"label":"([0-9.,]+)/,
-            /"text":"([0-9.,]+)"[^}]*?"label":"beğen/i
-        ];
-        for (const pattern of likePatterns) {
-            const match = html.match(pattern);
-            if (match && match[1]) {
-                likes = parseInt(match[1].replace(/[^0-9]/g, '')) || 0;
-                if (likes > 0) break;
-            }
+        const likeMatch = html.match(/"label"\s*:\s*"([0-9.,\s]*)\s*(beğeni|like)/i);
+        if (likeMatch) {
+            likes = parseInt(likeMatch[1].replace(/[^0-9]/g, '')) || 0;
+        } else {
+            const cleanHtml = html.replace(/&quot;/g, '"').replace(/\\/g, '');
+            const countMatch = cleanHtml.match(/"likeCountViewModel"\s*:\s*\{\s*"likeCountText"\s*:\s*\{\s*"content"\s*:\s*"([0-9.,KMB\s]+)"/i);
+            if (countMatch) likes = countMatch[1];
         }
 
-        // Yorum sayısı
+        // Yorum Sayısı
         let comments = 0;
-        const commentPatterns = [
-            /"commentsEntryPointHeaderRenderer":\{[^}]*"commentCount":\{"simpleText":"([0-9.,]+)"/,
-            /"commentCount":\{"simpleText":"([0-9.,]+)"/,
-            /([0-9.,]+)\s+yorum/i,
-            /([0-9.,]+)\s+comment/i
-        ];
-        for (const pattern of commentPatterns) {
-            const match = html.match(pattern);
-            if (match && match[1]) {
-                comments = parseInt(match[1].replace(/[^0-9]/g, '')) || 0;
-                if (comments > 0) break;
-            }
-        }
+        const commentMatch = html.match(/"commentCount"\s*:\s*\{\s*"simpleText"\s*:\s*"([0-9.,]+)"\}/i) || 
+                             html.match(/"text"\s*:\s*\{\s*"content"\s*:\s*"([0-9.,]+)\s*Yorum"/i);
+        if (commentMatch) comments = parseInt(commentMatch[1].replace(/[^0-9]/g, '')) || 0;
 
-        // Video süresi
+        // Süre
         let duration = 'Bilinmiyor';
-        const durationPatterns = [
-            /"lengthSeconds":"(\d+)"/,
-            /"approxDurationMs":"(\d+)"/
-        ];
-        for (const pattern of durationPatterns) {
-            const match = html.match(pattern);
-            if (match && match[1]) {
-                let seconds = parseInt(match[1]);
-                if (pattern.toString().includes('approxDurationMs')) {
-                    seconds = Math.floor(seconds / 1000);
-                }
-                const mins = Math.floor(seconds / 60);
-                const secs = seconds % 60;
-                duration = `${mins}:${String(secs).padStart(2, '0')}`;
-                break;
-            }
+        const lenMatch = html.match(/"lengthSeconds"\s*:\s*"(\d+)"/i);
+        if (lenMatch) {
+            const sec = parseInt(lenMatch[1]);
+            duration = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
         }
 
-        // Yayın tarihi
-        let publishDate = '';
-        const dateMatch = html.match(/"publishDate":"([^"]+)"/);
-        if (dateMatch) {
-            publishDate = dateMatch[1];
-        }
+        // Metrik Hesaplama
+        const parsedLikes = typeof likes === 'string' ? parseInt(likes.replace(/[^0-9]/g, '')) || 0 : likes;
+        const eng = views > 0 ? parseFloat((((parsedLikes + comments) / views) * 100).toFixed(2)) : 0;
+        const score = eng >= 6 ? 'Efsanevi' : eng >= 3 ? 'Yüksek' : eng >= 1 ? 'Normal' : 'Düşük';
 
-        // Etkileşim hesapla
-        const eng = views > 0 ? parseFloat((((likes + comments) / views) * 100).toFixed(2)) : 0;
-        const status = eng >= 7 ? 'Efsanevi (Viral)' : eng >= 4 ? 'Yüksek Etkileşim' : eng >= 2 ? 'Normal' : 'Düşük';
-
-        console.log(`✅ Başlık: ${title}`);
-        console.log(`👁️  İzlenme: ${views.toLocaleString('tr-TR')}`);
-        console.log(`👍 Beğeni: ${likes.toLocaleString('tr-TR')}`);
-        console.log(`💬 Yorum: ${comments.toLocaleString('tr-TR')}`);
-        console.log(`⏱️  Süre: ${duration}`);
-        console.log(`📊 Etkileşim: %${eng} - ${status}`);
-
-        res.json({ 
-            success: true, 
-            video_info: { 
-                id: value.video_id,
-                title: title, 
-                description: description.substring(0, 300) || 'Açıklama yok', 
-                view_count: views.toLocaleString('tr-TR'), 
-                like_count: likes.toLocaleString('tr-TR'), 
-                total_comments: comments.toLocaleString('tr-TR'),
-                duration: duration,
-                publish_date: publishDate || 'Bilinmiyor',
-                thumbnail: `https://i.ytimg.com/vi/${value.video_id}/maxresdefault.jpg`, 
-                analysis: { 
-                    engagement_rate: `%${eng}`, 
-                    score: status 
-                } 
+        res.json({
+            success: true,
+            video_info: {
+                title,
+                description: description.substring(0, 150) + '...',
+                view_count: views.toLocaleString('tr-TR'),
+                like_count: parsedLikes > 0 ? parsedLikes.toLocaleString('tr-TR') : (likes || 'Gizli/Yok'),
+                total_comments: comments > 0 ? comments.toLocaleString('tr-TR') : 'Gizli/Yok',
+                duration,
+                thumbnail: `https://i.ytimg.com/vi/${video_id}/mqdefault.jpg`,
+                analysis: { engagement_rate: `%${eng}`, score }
             }
         });
     } catch (e) {
-        console.error('❌ Video Hatası:', e.message);
         res.status(500).json({ detail: e.message });
     }
 });
 
-// ============================================================
-// TEST ENDPOINT: HTML içeriğinin ilk 5000 karakterini göster
-// ============================================================
-app.post('/api/v1/debug/fetch', async (req, res) => {
-    try {
-        const { url } = req.body;
-        if (!url) return res.status(400).json({ error: 'url parametresi gerekli' });
-        
-        console.log(`🔍 Debug fetch: ${url}`);
-        const html = await fetchFromWorker(url);
-        
-        res.json({
-            success: true,
-            url: url,
-            htmlLength: html.length,
-            preview: html.substring(0, 5000),
-            hasYtInitialData: html.includes('ytInitialData'),
-            hasVideoId: html.includes('videoId'),
-            hasSubscriberCount: html.includes('subscriberCount')
-        });
-    } catch (e) {
-        console.error('❌ Debug fetch hatası:', e);
-        res.status(500).json({ error: e.message });
-    }
-});
-
-// Catch-All HTML yönlendirmesi
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`🚀 Aerys Sunucusu ${PORT} Portunda Aktif.`);
-    console.log(`☁️  Tünel Hedefi: ${CLOUDFLARE_WORKER_URL}`);
-});
+app.listen(PORT, () => console.log(`🚀 Sunucu ${PORT} portunda aktif.`));

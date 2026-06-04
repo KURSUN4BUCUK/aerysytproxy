@@ -4,54 +4,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aerys - YouTube Analiz Sistemi</title>
-    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         :root {
             --bg: #06090d; --surface: #0c1017; --border: #1a2332;
             --accent: #ff3344; --text: #f0f4f8; --text2: #90a4be;
         }
-        body {
-            background: var(--bg); color: var(--text);
-            font-family: 'Syne', sans-serif; padding-bottom: 60px;
-        }
+        body { background: var(--bg); color: var(--text); font-family: 'Syne', sans-serif; padding-bottom: 60px; }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
-        
-        /* Navbar */
         nav { display: flex; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
         .logo { font-size: 22px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
         .logo-dot { width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
-
-        /* Hero */
         .hero { text-align: center; margin-bottom: 40px; }
         .hero h1 { font-size: 38px; font-weight: 800; margin-bottom: 10px; }
         .hero p { color: var(--text2); font-size: 15px; }
-
-        /* Search Box */
-        .search-area {
-            background: var(--surface); border: 1px solid var(--border);
-            padding: 8px; border-radius: 12px; display: flex; gap: 10px; margin-bottom: 40px;
-        }
-        .search-area input {
-            flex: 1; background: none; border: none; outline: none;
-            color: #fff; font-family: 'JetBrains Mono', monospace; padding: 12px; font-size: 14px;
-        }
-        .search-area button {
-            background: var(--accent); color: #fff; border: none; padding: 12px 24px;
-            border-radius: 8px; font-weight: 700; cursor: pointer; font-family: 'Syne', sans-serif; transition: 0.2s;
-        }
-        .search-area button:hover { opacity: 0.9; }
-        .search-area button:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        /* Results Elements */
+        .search-area { background: var(--surface); border: 1px solid var(--border); padding: 8px; border-radius: 12px; display: flex; gap: 10px; margin-bottom: 40px; }
+        .search-area input { flex: 1; background: none; border: none; outline: none; color: #fff; font-family: 'JetBrains Mono', monospace; padding: 12px; font-size: 14px; }
+        .search-area button { background: var(--accent); color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s; }
+        .search-area button:disabled { opacity: 0.5; }
         .results-section { display: none; flex-direction: column; gap: 30px; }
         .results-section.show { display: flex; }
-
-        /* Channel Info Card */
-        .channel-card {
-            background: var(--surface); border: 1px solid var(--border);
-            border-radius: 16px; padding: 24px; display: flex; gap: 20px; align-items: center;
-        }
+        .channel-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; gap: 20px; align-items: center; }
         .channel-avatar { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
         .channel-details h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
         .channel-details p { color: var(--text2); font-size: 13px; margin-bottom: 12px; }
@@ -59,28 +33,15 @@
         .stat-box { background: rgba(255,255,255,0.02); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); }
         .stat-box span { display: block; font-size: 11px; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
         .stat-box strong { font-size: 16px; color: var(--accent); }
-
-        /* Video List & Analysis Block */
         .main-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; }
         .v-list h3, .v-analysis h3 { font-size: 18px; margin-bottom: 15px; font-weight: 700; }
-        .video-item {
-            background: var(--surface); border: 1px solid var(--border); padding: 10px;
-            border-radius: 8px; display: flex; gap: 12px; margin-bottom: 10px; cursor: pointer; transition: 0.2s;
-        }
+        .video-item { background: var(--surface); border: 1px solid var(--border); padding: 10px; border-radius: 8px; display: flex; gap: 12px; margin-bottom: 10px; cursor: pointer; transition: 0.2s; }
         .video-item:hover { border-color: var(--accent); }
         .video-item img { width: 100px; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; }
         .video-item-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-
-        /* Analysis Container */
-        .analysis-box {
-            background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 16px;
-            position: sticky; top: 20px; display: none;
-        }
-        .analysis-box.show { display: block; }
+        .analysis-box { background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 16px; position: sticky; top: 20px; display: none; }
         .analysis-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; margin-bottom: 15px; }
-        .analysis-meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; }
-
-        /* Utility */
+        .analysis-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
         .loading { display: none; text-align: center; font-family: 'JetBrains Mono', monospace; color: var(--accent); padding: 20px; }
         .toast { position: fixed; bottom: 20px; right: 20px; background: #e63946; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; display: none; z-index: 99; }
     </style>
@@ -88,9 +49,7 @@
 <body>
 
 <div class="container">
-    <nav>
-        <div class="logo"><div class="logo-dot"></div>Aerys Engine</div>
-    </nav>
+    <nav><div class="logo"><div class="logo-dot"></div>Aerys Engine</div></nav>
 
     <div class="hero">
         <h1>YouTube Kanal İnceleme İstasyonu</h1>
@@ -98,7 +57,7 @@
     </div>
 
     <div class="search-area">
-        <input type="text" id="inputUrl" placeholder="https://www.youtube.com/@KanalAdi veya URL">
+        <input type="text" id="inputUrl" placeholder="https://www.youtube.com/@KanalAdi">
         <button id="btnAction" onclick="startAnalysis()">Sorgula</button>
     </div>
 
@@ -118,7 +77,6 @@
                     <img id="anThumb" class="analysis-img" src="" alt="Thumbnail">
                     <h4 id="anTitle" style="font-size:15px; margin-bottom:10px;">Video Başlığı</h4>
                     <p id="anDesc" style="font-size:12px; color:var(--text2); line-height:1.4; margin-bottom:15px;"></p>
-                    
                     <div class="analysis-meta">
                         <div class="stat-box"><span>İzlenme</span><strong id="anViews">-</strong></div>
                         <div class="stat-box"><span>Beğeni</span><strong id="anLikes">-</strong></div>
@@ -155,7 +113,7 @@
 
         btn.disabled = true; loader.style.display = 'block'; block.classList.remove('show');
         document.getElementById('analysisCard').style.display = 'none';
-        document.getElementById('analysisPlaceholder').style.style = 'block';
+        document.getElementById('analysisPlaceholder').style.display = 'block';
 
         try {
             const res = await fetch('/api/v1/channel/init-public', {
@@ -164,44 +122,33 @@
                 body: JSON.stringify({ channel_url: url })
             });
             const data = await res.json();
-
             if(!res.ok) throw new Error(data.detail || 'Kanal bulunamadı.');
-
-            // Kanal Bilgilerini Bas
-            const desc = data.channel_info.description || 'Açıklama bulunamadı.';
-            const descPreview = desc.length > 180 ? desc.substring(0, 180) + '...' : desc;
             
             document.getElementById('channelCardContainer').innerHTML = `
                 <div class="channel-card">
-                    <img class="channel-avatar" src="${data.channel_info.avatar}" alt="avatar" onerror="this.src='https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png'">
+                    <img class="channel-avatar" src="${data.channel_info.avatar || 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png'}" alt="avatar">
                     <div class="channel-details">
                         <h2>${data.channel_info.title}</h2>
-                        <p>${descPreview}</p>
+                        <p>${data.channel_info.description}</p>
                         <div class="stats-row">
                             <div class="stat-box"><span>Aboneler</span><strong>${data.channel_info.subscriber_count}</strong></div>
-                            <div class="stat-box"><span>Toplam Video</span><strong>${data.channel_info.total_videos_count}</strong></div>
-                            <div class="stat-box"><span>Çekilen Video</span><strong>${data.channel_info.fetched_videos_count || data.videos.length}</strong></div>
+                            <div class="stat-box"><span>Listelenen Video</span><strong>${data.channel_info.total_videos_count}</strong></div>
                         </div>
                     </div>
                 </div>
             `;
 
-            // Videoları listele
-            const listHtml = data.videos.map((v, idx) => `
+            document.getElementById('videoListContainer').innerHTML = data.videos.map(v => `
                 <div class="video-item" onclick="getDetailedAnalysis('${v.id}')">
-                    <img src="${v.thumbnail}" alt="thumb" onerror="this.src='https://i.ytimg.com/vi/${v.id}/hqdefault.jpg'">
-                    <div>
-                        <div class="video-item-title">${v.title || 'Video ' + (idx + 1)}</div>
-                    </div>
+                    <img src="${v.thumbnail}" alt="thumb">
+                    <div><div class="video-item-title">${v.title}</div></div>
                 </div>
-            `).join('');
+            `).join('') || '<p style="color:var(--text2); padding:20px;">Video bulunamadı.</p>';
             
-            document.getElementById('videoListContainer').innerHTML = listHtml || '<p style="color:var(--text2); padding:20px;">Video bulunamadı.</p>';
             block.classList.add('show');
-
         } catch(e) {
             showToast(e.message);
-        } finally {
+        } {
             btn.disabled = false; loader.style.display = 'none';
         }
     }
@@ -209,11 +156,10 @@
     async function getDetailedAnalysis(id) {
         document.getElementById('analysisPlaceholder').style.display = 'none';
         const card = document.getElementById('analysisCard');
-        card.style.display = 'none';
-
-        // Loading göster
-        document.getElementById('anTitle').textContent = '🔄 Video analiz ediliyor...';
         card.style.display = 'block';
+
+        document.getElementById('anTitle').textContent = '🔄 Analiz ediliyor...';
+        document.getElementById('anDesc').textContent = 'Lütfen bekleyin...';
 
         try {
             const res = await fetch('/api/v1/video/analyze', {
@@ -222,30 +168,17 @@
                 body: JSON.stringify({ video_id: id })
             });
             const data = await res.json();
+            if(!res.ok) throw new Error(data.detail || 'Video analizi alınamadı');
 
-            if(!res.ok) throw new Error('Video analizi alınamadı.');
-
-            // Thumbnail
             document.getElementById('anThumb').src = data.video_info.thumbnail;
-            
-            // Başlık
             document.getElementById('anTitle').textContent = data.video_info.title;
-            
-            // Açıklama
-            const desc = data.video_info.description || 'Açıklama yok';
-            document.getElementById('anDesc').textContent = desc.substring(0, 200) + (desc.length > 200 ? '...' : '');
-            
-            // İstatistikler
-            document.getElementById('anViews').textContent = data.video_info.view_count || '0';
-            document.getElementById('anLikes').textContent = data.video_info.like_count || '0';
-            document.getElementById('anComments').textContent = data.video_info.total_comments || '0';
-            document.getElementById('anDuration').textContent = data.video_info.duration || '-';
-            document.getElementById('anValEng').textContent = data.video_info.analysis.engagement_rate || '%0';
-            document.getElementById('anValScore').textContent = data.video_info.analysis.score || 'Bilinmiyor';
-
-            card.style.display = 'block';
-            
-            console.log('✅ Video analizi tamamlandı:', data.video_info.title);
+            document.getElementById('anDesc').textContent = data.video_info.description;
+            document.getElementById('anViews').textContent = data.video_info.view_count;
+            document.getElementById('anLikes').textContent = data.video_info.like_count;
+            document.getElementById('anComments').textContent = data.video_info.total_comments;
+            document.getElementById('anDuration').textContent = data.video_info.duration;
+            document.getElementById('anValEng').textContent = data.video_info.analysis.engagement_rate;
+            document.getElementById('anValScore').textContent = data.video_info.analysis.score;
         } catch(e) {
             showToast(e.message);
             document.getElementById('analysisPlaceholder').style.display = 'block';
