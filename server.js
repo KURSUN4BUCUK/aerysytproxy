@@ -11,11 +11,11 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// yt-dlp'yi asenkron ve güvenli çalıştıran yardımcı fonksiyon
+// Güvenli yt-dlp çalıştırıcı fonksiyonu
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
-        // execyerine execFile kullanarak parametre güvenliği sağlıyoruz
-        execFile('yt-dlp', args, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
+        // Büyük kanallarda binlerce video olabileceği için maxBuffer'ı 100MB'a çıkardım
+        execFile('yt-dlp', args, { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
             if (error) {
                 return reject(new Error(stderr || error.message));
             }
@@ -28,67 +28,83 @@ function runYtDlp(args) {
     });
 }
 
-// 1. ENDPOINT: KANAL BİLGİLERİ VE TÜM VİDEOLAR (GARANTİLİ)
+// 1. ENDPOINT: KANAL BİLGİLERİ VE TÜM VİDEOLAR (MÜKEMMELLEŞTİRİLMİŞ PARALEL SİSTEM)
 app.post('/api/v1/channel/init-public', async (req, res) => {
     let { channel_url } = req.body;
     if (!channel_url) return res.status(400).json({ detail: 'Kanal URL zorunlu.' });
 
-    // Kullanıcı sadece kullanıcı adı girdiyse URL'e dönüştür, sonundaki eğik çizgiyi temizle
     if (!channel_url.includes('youtube.com')) {
         channel_url = `https://www.youtube.com/${channel_url.startsWith('@') ? '' : '@'}${channel_url}`;
     }
     
-    // Videolar sekmesini garanti altına almak için URL sonuna ekleme yapıyoruz
-    const targetUrl = channel_url.endsWith('/videos') ? channel_url : `${channel_url.replace(/\/$/, '')}/videos`;
+    // URL'leri temizle ve hazırla
+    const baseChannelUrl = channel_url.replace(/\/videos$/, '').replace(/\/$/, '');
+    const videosTabUrl = `${baseChannelUrl}/videos`;
 
     try {
-        // --flat-playlist: Videoları tek tek indirmeden hızlıca listeler
-        // --dump-single-json: Tüm playlist/kanal içeriğini tek bir JSON objesi yapar
-        const args = [
-            '--flat-playlist',
-            '--dump-single-json',
-            '--playlist-end', '30', // Son 30 videoyu getir
-            targetUrl
-        ];
+        // Eşzamanlı paralel iki sorgu gönderiyoruz: Sıfır zaman kaybı, maksimum veri doğruluğu
+        const metaArgs = ['--dump-single-json', '--playlist-end', '0', baseChannelUrl];
+        const videoArgs = ['--flat-playlist', '--dump-single-json', videosTabUrl];
 
-        const output = await runYtDlp(args);
+        const [metaOutput, videoOutput] = await Promise.all([
+            runYtDlp(metaArgs).catch(err => {
+                console.warn('Meta verisi alınırken hata oluştu, fallback kullanılacak:', err.message);
+                return null;
+            }),
+            runYtDlp(videoArgs)
+        ]);
 
-        if (!output || !output.entries) {
-            throw new Error('Kanal verisi veya videolar alınamadı.');
+        if (!videoOutput || !videoOutput.entries) {
+            throw new Error('Kanalın videoları YouTube katmanından çekilemedi.');
         }
 
-        // yt-dlp'den gelen temiz verileri haritalandır
-        const videos = output.entries.map(entry => ({
+        // 1. Sınırsız Video Listeleme
+        const videos = videoOutput.entries.map(entry => ({
             id: entry.id,
             title: entry.title || 'Başlıksız Video',
             thumbnail: `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`
         }));
 
+        // 2. Abone Sayısı Ayrıştırma (Meta çıktı öncelikli, Video çıktı fallback)
+        const activeMeta = metaOutput || videoOutput;
+        let subscriberCount = 'Gizli/Yok';
+        if (activeMeta.channel_follower_count) {
+            subscriberCount = activeMeta.channel_follower_count.toLocaleString('tr-TR');
+        } else if (activeMeta.subscriber_count) {
+            subscriberCount = activeMeta.subscriber_count.toLocaleString('tr-TR');
+        }
+
+        // 3. Avatar Çözümleme (Kanal profil resmini tam çözünürlükte yakalar)
+        let avatarUrl = 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png';
+        if (activeMeta.thumbnails && activeMeta.thumbnails.length > 0) {
+            const avatarThumb = activeMeta.thumbnails.find(t => t.id === 'avatar') || activeMeta.thumbnails[activeMeta.thumbnails.length - 1];
+            if (avatarThumb && avatarThumb.url) avatarUrl = avatarThumb.url;
+        }
+
         res.json({
             success: true,
             channel_info: {
-                title: output.title || 'YouTube Kanalı',
-                description: output.description || 'Açıklama bulunamadı.',
-                subscriber_count: 'Aktif', // Flat playlist modunda abone sayısı için ana sayfaya vurmak gerekir, stabilite için 'Aktif' geçildi.
+                title: activeMeta.title || videoOutput.title || 'YouTube Kanalı',
+                description: activeMeta.description || 'Açıklama bulunamadı.',
+                subscriber_count: subscriberCount,
                 total_videos_count: videos.length,
-                avatar: '' // Ön yüz varsayılan avatarı basacak
+                avatar: avatarUrl
             },
             videos
         });
     } catch (e) {
-        console.error('yt-dlp Kanal Hatası:', e.message);
-        res.status(500).json({ detail: 'Kanal videoları çekilemedi: ' + e.message });
+        console.error('Kritik Kanal Hatası:', e.message);
+        res.status(500).json({ detail: 'Sistem hatası: ' + e.message });
     }
 });
 
-// 2. ENDPOINT: VİDEO METRİKLERİ VE ANALİZİ (GARANTİLİ)
+// 2. ENDPOINT: VİDEO METRİKLERİ VE ANALİZİ
 app.post('/api/v1/video/analyze', async (req, res) => {
     const { video_id } = req.body;
     if (!video_id) return res.status(400).json({ detail: 'video_id zorunlu.' });
 
     try {
         const videoUrl = `https://www.youtube.com/watch?v=${video_id}`;
-        // --dump-json: İlgili videonun tüm meta verilerini (like, view, comment) getirir
         const args = ['--dump-json', videoUrl];
         
         const output = await runYtDlp(args);
@@ -97,14 +113,12 @@ app.post('/api/v1/video/analyze', async (req, res) => {
         const likes = output.like_count || 0;
         const comments = output.comment_count || 0;
         
-        // Süre hesaplama (saniyeyi MM:SS formatına çevir)
         let duration = 'Bilinmiyor';
         if (output.duration) {
             const sec = parseInt(output.duration);
             duration = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
         }
 
-        // Etkileşim Skoru
         const eng = views > 0 ? parseFloat((((likes + comments) / views) * 100).toFixed(2)) : 0;
         const score = eng >= 6 ? 'Efsanevi' : eng >= 3 ? 'Yüksek' : eng >= 1 ? 'Normal' : 'Düşük';
 
@@ -130,4 +144,4 @@ app.post('/api/v1/video/analyze', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 [Aerys Pro] Sunucu yt-dlp motoru ile %100 güvende. Port: ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 [Aerys Engine v2] Çift Çekirdek Aktif. Port: ${PORT}`));
