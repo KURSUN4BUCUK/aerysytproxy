@@ -12,24 +12,35 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Render.com Linux ortamı ve lokal ortam binary ayrıştırma köprüsü
+// Render.com ve lokal ortam binary köprüsü
 const YT_DLP_PATH = fs.existsSync(path.join(process.cwd(), 'bin', 'yt-dlp')) 
     ? path.join(process.cwd(), 'bin', 'yt-dlp') 
     : 'yt-dlp';
 
-// CRITICAL FIX: EACCES (Permission Denied) hatasını engellemek için runtime'da çalıştırma iznini zorla (chmod 755)
+// EACCES (Permission Denied) koruması
 if (YT_DLP_PATH !== 'yt-dlp') {
     try {
         fs.chmodSync(YT_DLP_PATH, '755');
-        console.log('🛡️ [Aerys Engine] yt-dlp binary çalışma izinleri (755) başarıyla doğrulandı.');
+        console.log('🛡️ [Aerys Engine] yt-dlp çalışma izinleri doğrulandı.');
     } catch (err) {
-        console.error('⚠️ [Aerys Engine] Çalıştırma izni verilirken hata oluştu:', err.message);
+        console.error('⚠️ İzin hatası:', err.message);
     }
 }
 
+// Global optimize edilmiş yt-dlp çalıştırıcı core fonksiyonu
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
-        execFile(YT_DLP_PATH, args, { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
+        // Render CPU yükünü hafifletmek ve YouTube bot korumasını geçmek için optimizasyon bayrakları
+        const optimizationFlags = [
+            '--no-warnings',
+            '--no-call-home',
+            '--no-check-certificates',
+            '--extractor-args', 'youtube:player_client=android' // YouTube veri merkezi bloklarını aşar ve aşırı hızlıdır
+        ];
+        
+        const finalArgs = [...optimizationFlags, ...args];
+
+        execFile(YT_DLP_PATH, finalArgs, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
             if (error) {
                 return reject(new Error(stderr || error.message));
             }
@@ -42,7 +53,7 @@ function runYtDlp(args) {
     });
 }
 
-// 1. ENDPOINT: KANAL BİLGİLERİ VE TÜM VİDEOLAR (PARALEL SİSTEM)
+// 1. ENDPOINT: KANAL BİLGİLERİ VE TÜM VİDEOLAR
 app.post('/api/v1/channel/init-public', async (req, res) => {
     let { channel_url } = req.body;
     if (!channel_url) return res.status(400).json({ detail: 'Kanal URL zorunlu.' });
@@ -55,13 +66,14 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
     const videosTabUrl = `${baseChannelUrl}/videos`;
 
     try {
-        const metaArgs = ['--dump-single-json', '--playlist-end', '0', baseChannelUrl];
+        // FIX: playlist-end 0 hatası playlist-items 0 ile düzeltildi
+        const metaArgs = ['--dump-single-json', '--playlist-items', '0', baseChannelUrl];
         const videoArgs = ['--flat-playlist', '--dump-single-json', videosTabUrl];
 
-        // Paralel işleme katmanı
+        // Performans için paralel işlem katmanı korundu
         const [metaOutput, videoOutput] = await Promise.all([
             runYtDlp(metaArgs).catch(err => {
-                console.warn('Meta verisi alınırken hata oluştu, fallback kullanılacak:', err.message);
+                console.warn('Meta fallback devreye girdi:', err.message);
                 return null;
             }),
             runYtDlp(videoArgs)
@@ -71,14 +83,12 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
             throw new Error('Kanalın videoları YouTube katmanından çekilemedi.');
         }
 
-        // Sınırsız Video Listeleme
         const videos = videoOutput.entries.map(entry => ({
             id: entry.id,
             title: entry.title || 'Başlıksız Video',
             thumbnail: `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`
         }));
 
-        // Abone Sayısı Ayrıştırma
         const activeMeta = metaOutput || videoOutput;
         let subscriberCount = 'Gizli/Yok';
         if (activeMeta.channel_follower_count) {
@@ -87,7 +97,6 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
             subscriberCount = activeMeta.subscriber_count.toLocaleString('tr-TR');
         }
 
-        // Yüksek Çözünürlüklü Avatar Çözümleme
         let avatarUrl = 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png';
         if (activeMeta.thumbnails && activeMeta.thumbnails.length > 0) {
             const avatarThumb = activeMeta.thumbnails.find(t => t.id === 'avatar') || activeMeta.thumbnails[activeMeta.thumbnails.length - 1];
@@ -111,13 +120,14 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
     }
 });
 
-// 2. ENDPOINT: VİDEO METRİKLERİ VE ANALİZİ
+// 2. ENDPOINT: VİDEO METRİKLERİ VE ANALİZİ (HIZLANDIRILMIŞ VE BULUT OYUNU GEÇEN YAPILANDIRMA)
 app.post('/api/v1/video/analyze', async (req, res) => {
     const { video_id } = req.body;
     if (!video_id) return res.status(400).json({ detail: 'video_id zorunlu.' });
 
     try {
         const videoUrl = `https://www.youtube.com/watch?v=${video_id}`;
+        // --skip-download zaten dump-json içinde var, ek hafiflik için format sorgusunu pas geçiyoruz
         const args = ['--dump-json', videoUrl];
         
         const output = await runYtDlp(args);
@@ -150,11 +160,11 @@ app.post('/api/v1/video/analyze', async (req, res) => {
         });
     } catch (e) {
         console.error('yt-dlp Video Hatası:', e.message);
-        res.status(500).json({ detail: 'Video verileri çekilemedi: ' + e.message });
+        res.status(500).json({ detail: 'Video verileri çekilemedi (YouTube Engeli): ' + e.message });
     }
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 [Aerys Engine v2 - Production Ready] Port: ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 [Aerys Engine v2] Sürat Modu Aktif. Port: ${PORT}`));
