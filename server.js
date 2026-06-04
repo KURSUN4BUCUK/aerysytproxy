@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 const { execFile } = require('child_process');
 
 dotenv.config();
@@ -11,11 +12,14 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Güvenli yt-dlp çalıştırıcı fonksiyonu
+// Render.com Linux ortamı ve lokal ortam binary ayrıştırma köprüsü
+const YT_DLP_PATH = fs.existsSync(path.join(process.cwd(), 'bin', 'yt-dlp')) 
+    ? path.join(process.cwd(), 'bin', 'yt-dlp') 
+    : 'yt-dlp';
+
 function runYtDlp(args) {
     return new Promise((resolve, reject) => {
-        // Büyük kanallarda binlerce video olabileceği için maxBuffer'ı 100MB'a çıkardım
-        execFile('yt-dlp', args, { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
+        execFile(YT_DLP_PATH, args, { maxBuffer: 1024 * 1024 * 100 }, (error, stdout, stderr) => {
             if (error) {
                 return reject(new Error(stderr || error.message));
             }
@@ -28,7 +32,7 @@ function runYtDlp(args) {
     });
 }
 
-// 1. ENDPOINT: KANAL BİLGİLERİ VE TÜM VİDEOLAR (MÜKEMMELLEŞTİRİLMİŞ PARALEL SİSTEM)
+// 1. ENDPOINT: KANAL BİLGİLERİ VE TÜM VİDEOLAR (PARALEL SİSTEM)
 app.post('/api/v1/channel/init-public', async (req, res) => {
     let { channel_url } = req.body;
     if (!channel_url) return res.status(400).json({ detail: 'Kanal URL zorunlu.' });
@@ -37,15 +41,14 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
         channel_url = `https://www.youtube.com/${channel_url.startsWith('@') ? '' : '@'}${channel_url}`;
     }
     
-    // URL'leri temizle ve hazırla
     const baseChannelUrl = channel_url.replace(/\/videos$/, '').replace(/\/$/, '');
     const videosTabUrl = `${baseChannelUrl}/videos`;
 
     try {
-        // Eşzamanlı paralel iki sorgu gönderiyoruz: Sıfır zaman kaybı, maksimum veri doğruluğu
         const metaArgs = ['--dump-single-json', '--playlist-end', '0', baseChannelUrl];
         const videoArgs = ['--flat-playlist', '--dump-single-json', videosTabUrl];
 
+        // Paralel işleme katmanı
         const [metaOutput, videoOutput] = await Promise.all([
             runYtDlp(metaArgs).catch(err => {
                 console.warn('Meta verisi alınırken hata oluştu, fallback kullanılacak:', err.message);
@@ -58,14 +61,14 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
             throw new Error('Kanalın videoları YouTube katmanından çekilemedi.');
         }
 
-        // 1. Sınırsız Video Listeleme
+        // Sınırsız Video Listeleme
         const videos = videoOutput.entries.map(entry => ({
             id: entry.id,
             title: entry.title || 'Başlıksız Video',
             thumbnail: `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`
         }));
 
-        // 2. Abone Sayısı Ayrıştırma (Meta çıktı öncelikli, Video çıktı fallback)
+        // Abone Sayısı Ayrıştırma
         const activeMeta = metaOutput || videoOutput;
         let subscriberCount = 'Gizli/Yok';
         if (activeMeta.channel_follower_count) {
@@ -74,7 +77,7 @@ app.post('/api/v1/channel/init-public', async (req, res) => {
             subscriberCount = activeMeta.subscriber_count.toLocaleString('tr-TR');
         }
 
-        // 3. Avatar Çözümleme (Kanal profil resmini tam çözünürlükte yakalar)
+        // Yüksek Çözünürlüklü Avatar Çözümleme
         let avatarUrl = 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png';
         if (activeMeta.thumbnails && activeMeta.thumbnails.length > 0) {
             const avatarThumb = activeMeta.thumbnails.find(t => t.id === 'avatar') || activeMeta.thumbnails[activeMeta.thumbnails.length - 1];
@@ -144,4 +147,4 @@ app.post('/api/v1/video/analyze', async (req, res) => {
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 [Aerys Engine v2] Çift Çekirdek Aktif. Port: ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 [Aerys Engine v2 - Production Ready] Port: ${PORT}`));
