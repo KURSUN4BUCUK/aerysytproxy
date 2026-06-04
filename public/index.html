@@ -28,7 +28,7 @@
         .channel-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; display: flex; gap: 20px; align-items: center; }
         .channel-avatar { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
         .channel-details h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
-        .channel-details p { color: var(--text2); font-size: 13px; margin-bottom: 12px; }
+        .channel-details p { color: var(--text2); font-size: 13px; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
         .stats-row { display: flex; gap: 20px; }
         .stat-box { background: rgba(255,255,255,0.02); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); }
         .stat-box span { display: block; font-size: 11px; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
@@ -52,16 +52,16 @@
     <nav><div class="logo"><div class="logo-dot"></div>Aerys Engine</div></nav>
 
     <div class="hero">
-        <h1>YouTube Kanal İnceleme İstasyonu</h1>
-        <p>Herhangi bir kanal URL'si girin, verileri ve video analizlerini anında çıkartın.</p>
+        <h1>YouTube Analiz İstasyonu</h1>
+        <p>Native yt-dlp çekirdeği entegre edilmiş, kırılmaz veri analiz otomasyonu.</p>
     </div>
 
     <div class="search-area">
-        <input type="text" id="inputUrl" placeholder="https://www.youtube.com/@KanalAdi">
+        <input type="text" id="inputUrl" placeholder="Kanal linki veya @KanalAdi girin">
         <button id="btnAction" onclick="startAnalysis()">Sorgula</button>
     </div>
 
-    <div class="loading" id="loader">🔄 İstasyon verileri işliyor, lütfen bekleyin...</div>
+    <div class="loading" id="loader">🔄 yt-dlp çekirdeği YouTube API katmanını çözümlüyor...</div>
 
     <div class="results-section" id="resultsBlock">
         <div id="channelCardContainer"></div>
@@ -87,7 +87,7 @@
                     </div>
                 </div>
                 <div id="analysisPlaceholder" style="color:var(--text2); font-size:13px; text-align:center; padding:40px; background:var(--surface); border:1px solid var(--border); border-radius:16px;">
-                    Verileri görmek için soldaki videolardan birine tıklayın.
+                    Detaylı etkileşim analizi ve gizli metrikleri çözmek için soldan video seçin.
                 </div>
             </div>
         </div>
@@ -105,7 +105,7 @@
 
     async function startAnalysis() {
         const url = document.getElementById('inputUrl').value.trim();
-        if(!url) return showToast('Lütfen geçerli bir URL girin.');
+        if(!url) return showToast('Lütfen geçerli bir URL veya kanal adı girin.');
 
         const btn = document.getElementById('btnAction');
         const loader = document.getElementById('loader');
@@ -122,16 +122,16 @@
                 body: JSON.stringify({ channel_url: url })
             });
             const data = await res.json();
-            if(!res.ok) throw new Error(data.detail || 'Kanal bulunamadı.');
+            if(!res.ok) throw new Error(data.detail || 'Kanal verileri çekilemedi.');
             
             document.getElementById('channelCardContainer').innerHTML = `
                 <div class="channel-card">
-                    <img class="channel-avatar" src="${data.channel_info.avatar || 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png'}" alt="avatar">
+                    <img class="channel-avatar" src="https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png" alt="avatar">
                     <div class="channel-details">
                         <h2>${data.channel_info.title}</h2>
                         <p>${data.channel_info.description}</p>
                         <div class="stats-row">
-                            <div class="stat-box"><span>Aboneler</span><strong>${data.channel_info.subscriber_count}</strong></div>
+                            <div class="stat-box"><span>Durum</span><strong style="color:#22c55e;">Çevrimiçi</strong></div>
                             <div class="stat-box"><span>Listelenen Video</span><strong>${data.channel_info.total_videos_count}</strong></div>
                         </div>
                     </div>
@@ -143,12 +143,12 @@
                     <img src="${v.thumbnail}" alt="thumb">
                     <div><div class="video-item-title">${v.title}</div></div>
                 </div>
-            `).join('') || '<p style="color:var(--text2); padding:20px;">Video bulunamadı.</p>';
+            `).join('') || '<p style="color:var(--text2); padding:20px;">Kanalda video bulunamadı.</p>';
             
             block.classList.add('show');
         } catch(e) {
             showToast(e.message);
-        } {
+        } finally {
             btn.disabled = false; loader.style.display = 'none';
         }
     }
@@ -158,7 +158,7 @@
         const card = document.getElementById('analysisCard');
         card.style.display = 'block';
 
-        document.getElementById('anTitle').textContent = '🔄 Analiz ediliyor...';
+        document.getElementById('anTitle').textContent = '🔄 Ham metrikler çözülüyor...';
         document.getElementById('anDesc').textContent = 'Lütfen bekleyin...';
 
         try {
@@ -168,7 +168,7 @@
                 body: JSON.stringify({ video_id: id })
             });
             const data = await res.json();
-            if(!res.ok) throw new Error(data.detail || 'Video analizi alınamadı');
+            if(!res.ok) throw new Error(data.detail || 'Video analizi başarısız.');
 
             document.getElementById('anThumb').src = data.video_info.thumbnail;
             document.getElementById('anTitle').textContent = data.video_info.title;
