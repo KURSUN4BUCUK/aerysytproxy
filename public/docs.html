@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>YT Engine — API Docs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080b0f;--surface:#0e1318;--surface2:#141a22;--surface3:#1a2330;
+  --border:#1e2a38;--border2:#243040;
+  --accent:#e63946;--text:#e8edf2;--text2:#8899aa;--muted:#4a5a6a;
+  --green:#22c55e;--yellow:#f59e0b;--blue:#3b82f6;--purple:#a855f7;
+}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;display:flex;}
+
+/* SIDEBAR */
+.sidebar{width:260px;min-height:100vh;background:var(--surface);border-right:1px solid var(--border);position:fixed;top:0;left:0;display:flex;flex-direction:column;overflow-y:auto;}
+.sidebar-header{padding:20px;border-bottom:1px solid var(--border);}
+.back-btn{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--text2);cursor:pointer;margin-bottom:16px;transition:.15s;}
+.back-btn:hover{color:var(--text);}
+.back-btn svg{width:14px;height:14px;}
+.api-title{font-size:16px;font-weight:800;}
+.api-version{display:inline-block;background:rgba(59,130,246,.15);color:var(--blue);font-size:10px;font-family:'JetBrains Mono',monospace;padding:2px 8px;border-radius:20px;margin-top:4px;}
+.sidebar-section{padding:16px 12px 8px;}
+.sidebar-section-label{font-size:10px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;padding:0 8px;margin-bottom:6px;}
+.ep-link{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;color:var(--text2);transition:.15s;}
+.ep-link:hover{background:var(--surface2);color:var(--text);}
+.ep-link.active{background:rgba(230,57,70,.1);color:var(--accent);}
+.method-pill{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;padding:2px 6px;border-radius:4px;flex-shrink:0;}
+.post{background:rgba(34,197,94,.15);color:var(--green);}
+.get{background:rgba(59,130,246,.15);color:var(--blue);}
+
+/* MAIN */
+.main{margin-left:260px;flex:1;padding:40px;max-width:900px;}
+.endpoint-section{display:none;animation:fadeIn .2s ease;}
+.endpoint-section.active{display:block;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* ENDPOINT HEADER */
+.ep-header{display:flex;align-items:center;gap:12px;margin-bottom:8px;}
+.ep-method{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;padding:5px 12px;border-radius:6px;}
+.ep-path{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:500;}
+.ep-desc{color:var(--text2);font-size:14px;margin-bottom:28px;line-height:1.6;}
+.section-label{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+.section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* CODE BLOCKS */
+.code-wrap{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:24px;}
+.code-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid var(--border);background:var(--surface2);}
+.code-lang{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);}
+.copy-btn{font-family:'JetBrains Mono',monospace;font-size:11px;background:none;border:none;color:var(--text2);cursor:pointer;padding:2px 6px;border-radius:4px;transition:.15s;}
+.copy-btn:hover{background:var(--surface3);color:var(--text);}
+pre{padding:16px;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;}
+.kw{color:#e63946;}.str{color:#22c55e;}.num{color:#f59e0b;}.key{color:#3b82f6;}.cmt{color:#4a5a6a;}
+
+/* PARAMS TABLE */
+.params-table{width:100%;border-collapse:collapse;margin-bottom:24px;font-size:13px;}
+.params-table th{text-align:left;padding:9px 12px;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;border-bottom:1px solid var(--border);font-weight:500;}
+.params-table td{padding:10px 12px;border-bottom:1px solid var(--border);}
+.params-table tr:last-child td{border-bottom:none;}
+.param-name{font-family:'JetBrains Mono',monospace;color:var(--text);font-size:12px;}
+.param-type{font-family:'JetBrains Mono',monospace;font-size:11px;padding:2px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--yellow);}
+.required{color:var(--accent);font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;}
+
+/* TRY IT */
+.try-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:28px;}
+.try-panel label{display:block;font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;margin-bottom:6px;}
+.try-panel input,.try-panel textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:9px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:.2s;margin-bottom:12px;}
+.try-panel input:focus,.try-panel textarea:focus{border-color:var(--accent);}
+.try-panel textarea{min-height:90px;resize:vertical;}
+.run-btn{display:flex;align-items:center;gap:6px;background:var(--accent);color:#fff;border:none;border-radius:7px;padding:9px 16px;font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;}
+.run-btn:hover{background:#c1121f;}
+.run-btn svg{width:14px;height:14px;}
+.response-box{margin-top:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:14px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.6;max-height:300px;overflow-y:auto;white-space:pre-wrap;display:none;}
+.response-box.show{display:block;}
+.res-ok{color:var(--green);}
+.res-err{color:var(--accent2);}
+
+/* AUTH BANNER */
+.auth-banner{background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:12px 16px;font-size:12px;color:var(--yellow);margin-bottom:20px;font-family:'JetBrains Mono',monospace;}
+
+/* OVERVIEW */
+.overview-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:28px;}
+.info-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.info-card-title{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em;}
+.info-card p{font-size:13px;color:var(--text2);line-height:1.7;}
+.base-url{font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--surface2);border:1px solid var(--border);padding:8px 12px;border-radius:6px;color:var(--green);}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-header">
+    <div class="back-btn" onclick="location.href='/dashboard'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+      Dashboard'a Dön
+    </div>
+    <div class="api-title">YT Engine API</div>
+    <span class="api-version">v1.0</span>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Başlangıç</div>
+    <div class="ep-link active" onclick="show('overview',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Genel Bakış & Auth
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Kanal İşlemleri</div>
+    <div class="ep-link" onclick="show('channel-init',this)">
+      <span class="method-pill post">POST</span>/channel/init
+    </div>
+    <div class="ep-link" onclick="show('channel-details',this)">
+      <span class="method-pill post">POST</span>/channel/page-details
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-section-label">Video Analizi</div>
+    <div class="ep-link" onclick="show('video-analyze',this)">
+      <span class="method-pill post">POST</span>/video/analyze
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+
+  <!-- OVERVIEW -->
+  <div class="endpoint-section active" id="ep-overview">
+    <div style="font-size:26px;font-weight:800;margin-bottom:6px;">API Referansı</div>
+    <div style="color:var(--text2);font-size:14px;margin-bottom:28px;">YouTube Scaler Engine — Kanal ve video analitik API'si</div>
+
+    <div class="overview-grid">
+      <div class="info-card">
+        <div class="info-card-title">Base URL</div>
+        <div class="base-url" id="baseUrlDisplay">https://yourdomain.com</div>
+      </div>
+      <div class="info-card">
+        <div class="info-card-title">Format</div>
+        <p>Tüm istekler <code style="font-family:monospace;color:var(--yellow)">application/json</code> döner. Hata yanıtları <code style="font-family:monospace;color:var(--accent)">{ "detail": "..." }</code> formatındadır.</p>
+      </div>
+    </div>
+
+    <div class="section-label">Kimlik Doğrulama</div>
+    <p style="color:var(--text2);font-size:13px;line-height:1.7;margin-bottom:16px;">Tüm <code style="font-family:monospace;color:var(--yellow)">/api/v1/</code> endpoint'lerine istek atmak için bir API anahtarı gereklidir. Anahtarı <code style="font-family:monospace;color:var(--yellow)">x-api-key</code> header'ı ile gönderin.</p>
+
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">HTTP Header</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+      <pre><span class="kw">x-api-key</span>: <span class="str">yte_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx</span></pre>
+    </div>
+
+    <div class="section-label">Örnek — cURL</div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">bash</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+      <pre><span class="kw">curl</span> -X POST <span class="str">"https://yourdomain.com/api/v1/video/analyze"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -H <span class="str">"x-api-key: yte_YOUR_KEY"</span> \
+  -d <span class="str">'{"video_id": "dQw4w9WgXcQ"}'</span></pre>
+    </div>
+
+    <div class="section-label">HTTP Durum Kodları</div>
+    <table class="params-table">
+      <thead><tr><th>Kod</th><th>Anlam</th></tr></thead>
+      <tbody>
+        <tr><td class="param-name" style="color:var(--green)">200</td><td style="color:var(--text2)">Başarılı</td></tr>
+        <tr><td class="param-name" style="color:var(--yellow)">400</td><td style="color:var(--text2)">Geçersiz parametre</td></tr>
+        <tr><td class="param-name" style="color:var(--accent)">401</td><td style="color:var(--text2)">API anahtarı eksik</td></tr>
+        <tr><td class="param-name" style="color:var(--accent)">403</td><td style="color:var(--text2)">Geçersiz veya pasif API anahtarı</td></tr>
+        <tr><td class="param-name" style="color:var(--accent)">500</td><td style="color:var(--text2)">YouTube bağlantı hatası</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- CHANNEL INIT -->
+  <div class="endpoint-section" id="ep-channel-init">
+    <div class="ep-header">
+      <span class="ep-method post">POST</span>
+      <span class="ep-path">/api/v1/channel/init</span>
+    </div>
+    <div class="ep-desc">Bir YouTube kanalının meta verilerini (başlık, abone sayısı, açıklama, avatar) ve video listesini çeker. Sonuçlar 10 dakika cache'lenir.</div>
+
+    <div class="section-label">İstek Gövdesi</div>
+    <table class="params-table">
+      <thead><tr><th>Alan</th><th>Tip</th><th>Zorunlu</th><th>Açıklama</th></tr></thead>
+      <tbody>
+        <tr><td class="param-name">channel_url</td><td><span class="param-type">string</span></td><td><span class="required">EVET</span></td><td style="color:var(--text2)">Tam YouTube kanal URL'si. <code style="font-family:monospace">@handle</code>, <code style="font-family:monospace">/c/</code> veya <code style="font-family:monospace">/channel/</code> formatı kabul edilir.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-label">Örnek İstek</div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+      <pre>{
+  <span class="key">"channel_url"</span>: <span class="str">"https://www.youtube.com/@MrBeast"</span>
+}</pre>
+    </div>
+
+    <div class="section-label">Örnek Yanıt</div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+      <pre>{
+  <span class="key">"success"</span>: <span class="kw">true</span>,
+  <span class="key">"channel_info"</span>: {
+    <span class="key">"id"</span>: <span class="str">"UCX6OQ3DkcsbYNE6H8uQQuVA"</span>,
+    <span class="key">"title"</span>: <span class="str">"MrBeast"</span>,
+    <span class="key">"description"</span>: <span class="str">"..."</span>,
+    <span class="key">"subscriber_count"</span>: <span class="str">"338.000.000 abone"</span>,
+    <span class="key">"total_videos_count"</span>: <span class="num">780</span>,
+    <span class="key">"avatar"</span>: <span class="str">"https://..."</span>
+  },
+  <span class="key">"all_video_ids"</span>: [<span class="str">"abc123"</span>, <span class="str">"..."</span>],
+  <span class="key">"videos"</span>: [
+    {
+      <span class="key">"id"</span>: <span class="str">"abc123"</span>,
+      <span class="key">"title"</span>: <span class="str">"Video Başlığı"</span>,
+      <span class="key">"thumbnail"</span>: <span class="str">"https://i.ytimg.com/vi/abc123/hqdefault.jpg"</span>,
+      <span class="key">"url"</span>: <span class="str">"https://www.youtube.com/watch?v=abc123"</span>
+    }
+  ]
+}</pre>
+    </div>
+
+    <div class="section-label">Dene</div>
+    <div class="try-panel">
+      <div class="auth-banner">⚠ API anahtarınızı aşağıya girin. Dashboard → API Anahtarları bölümünden oluşturabilirsiniz.</div>
+      <label>x-api-key</label>
+      <input type="text" id="ci-key" placeholder="yte_..."/>
+      <label>channel_url</label>
+      <input type="text" id="ci-url" placeholder="https://www.youtube.com/@KanalAdi" value="https://www.youtube.com/@MrBeast"/>
+      <button class="run-btn" onclick="tryChannelInit()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        İsteği Gönder
+      </button>
+      <div class="response-box" id="ci-res"></div>
+    </div>
+  </div>
+
+  <!-- CHANNEL PAGE DETAILS -->
+  <div class="endpoint-section" id="ep-channel-details">
+    <div class="ep-header">
+      <span class="ep-method post">POST</span>
+      <span class="ep-path">/api/v1/channel/page-details</span>
+    </div>
+    <div class="ep-desc">Verilen video ID listesi için izlenme, beğeni ve süre bilgilerini doldurur. En fazla 10 video işlenir.</div>
+
+    <div class="section-label">İstek Gövdesi</div>
+    <table class="params-table">
+      <thead><tr><th>Alan</th><th>Tip</th><th>Zorunlu</th><th>Açıklama</th></tr></thead>
+      <tbody>
+        <tr><td class="param-name">video_ids</td><td><span class="param-type">string[]</span></td><td><span class="required">EVET</span></td><td style="color:var(--text2)">Video ID listesi. Max 10 adet. <code style="font-family:monospace">/channel/init</code>'ten gelen <code style="font-family:monospace">all_video_ids</code>'i kullanın.</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-label">Örnek İstek</div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+      <pre>{
+  <span class="key">"video_ids"</span>: [<span class="str">"dQw4w9WgXcQ"</span>, <span class="str">"9bZkp7q19f0"</span>]
+}</pre>
+    </div>
+
+    <div class="section-label">Dene</div>
+    <div class="try-panel">
+      <label>x-api-key</label>
+      <input type="text" id="pd-key" placeholder="yte_..."/>
+      <label>video_ids (JSON array)</label>
+      <textarea id="pd-ids">["dQw4w9WgXcQ"]</textarea>
+      <button class="run-btn" onclick="tryPageDetails()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        İsteği Gönder
+      </button>
+      <div class="response-box" id="pd-res"></div>
+    </div>
+  </div>
+
+  <!-- VIDEO ANALYZE -->
+  <div class="endpoint-section" id="ep-video-analyze">
+    <div class="ep-header">
+      <span class="ep-method post">POST</span>
+      <span class="ep-path">/api/v1/video/analyze</span>
+    </div>
+    <div class="ep-desc">Bir videonun izlenme, beğeni, yorum sayısını çeker ve engagement rate ile performans skoru hesaplar.</div>
+
+    <div class="section-label">İstek Gövdesi</div>
+    <table class="params-table">
+      <thead><tr><th>Alan</th><th>Tip</th><th>Zorunlu</th><th>Açıklama</th></tr></thead>
+      <tbody>
+        <tr><td class="param-name">video_id</td><td><span class="param-type">string</span></td><td><span class="required">EVET</span></td><td style="color:var(--text2)">YouTube video ID (URL'deki <code style="font-family:monospace">?v=</code> sonrası)</td></tr>
+        <tr><td class="param-name">comment_limit</td><td><span class="param-type">integer</span></td><td style="color:var(--muted)">hayır</td><td style="color:var(--text2)">Şu an kullanılmıyor, ileride eklenecek. Varsayılan: 100</td></tr>
+      </tbody>
+    </table>
+
+    <div class="section-label">Örnek Yanıt</div>
+    <div class="code-wrap">
+      <div class="code-header"><span class="code-lang">json</span><button class="copy-btn" onclick="copyCode(this)">Kopyala</button></div>
+      <pre>{
+  <span class="key">"success"</span>: <span class="kw">true</span>,
+  <span class="key">"video_info"</span>: {
+    <span class="key">"title"</span>: <span class="str">"Video Başlığı"</span>,
+    <span class="key">"view_count"</span>: <span class="num">1234567</span>,
+    <span class="key">"like_count"</span>: <span class="num">45678</span>,
+    <span class="key">"total_youtube_comments"</span>: <span class="num">3210</span>,
+    <span class="key">"duration_seconds"</span>: <span class="num">213</span>,
+    <span class="key">"thumbnail"</span>: <span class="str">"https://i.ytimg.com/vi/.../maxresdefault.jpg"</span>,
+    <span class="key">"analysis"</span>: {
+      <span class="key">"engagement_rate"</span>: <span class="str">"%3.97"</span>,
+      <span class="key">"channel_contribution_score"</span>: <span class="str">"Normal Katkı"</span>
+    }
+  }
+}</pre>
+    </div>
+
+    <div class="section-label">Dene</div>
+    <div class="try-panel">
+      <label>x-api-key</label>
+      <input type="text" id="va-key" placeholder="yte_..."/>
+      <label>video_id</label>
+      <input type="text" id="va-vid" placeholder="dQw4w9WgXcQ" value="dQw4w9WgXcQ"/>
+      <button class="run-btn" onclick="tryAnalyze()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+        İsteği Gönder
+      </button>
+      <div class="response-box" id="va-res"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// Base URL
+document.getElementById('baseUrlDisplay').textContent = location.origin;
+
+function show(name, el) {
+  document.querySelectorAll('.endpoint-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.ep-link').forEach(l => l.classList.remove('active'));
+  document.getElementById('ep-' + name).classList.add('active');
+  el.classList.add('active');
+}
+
+function copyCode(btn) {
+  const pre = btn.closest('.code-wrap').querySelector('pre');
+  navigator.clipboard.writeText(pre.innerText).then(() => { btn.textContent = 'Kopyalandı!'; setTimeout(() => btn.textContent = 'Kopyala', 1500); });
+}
+
+async function apiCall(endpoint, body, key, resId) {
+  const resEl = document.getElementById(resId);
+  resEl.className = 'response-box show';
+  resEl.textContent = 'İstek gönderiliyor...';
+  try {
+    const r = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json','x-api-key':key}, body: JSON.stringify(body) });
+    const d = await r.json();
+    resEl.textContent = JSON.stringify(d, null, 2);
+    resEl.className = `response-box show ${r.ok ? 'res-ok' : 'res-err'}`;
+  } catch (e) {
+    resEl.textContent = 'Hata: ' + e.message;
+    resEl.className = 'response-box show res-err';
+  }
+}
+
+function tryChannelInit() {
+  const key = document.getElementById('ci-key').value.trim();
+  const url = document.getElementById('ci-url').value.trim();
+  if (!key) { alert('API anahtarını girin.'); return; }
+  apiCall('/api/v1/channel/init', { channel_url: url }, key, 'ci-res');
+}
+
+function tryPageDetails() {
+  const key = document.getElementById('pd-key').value.trim();
+  let ids;
+  try { ids = JSON.parse(document.getElementById('pd-ids').value); } catch { alert('Geçersiz JSON array.'); return; }
+  if (!key) { alert('API anahtarını girin.'); return; }
+  apiCall('/api/v1/channel/page-details', { video_ids: ids }, key, 'pd-res');
+}
+
+function tryAnalyze() {
+  const key = document.getElementById('va-key').value.trim();
+  const vid = document.getElementById('va-vid').value.trim();
+  if (!key) { alert('API anahtarını girin.'); return; }
+  apiCall('/api/v1/video/analyze', { video_id: vid }, key, 'va-res');
+}
+</script>
+</body>
+</html>

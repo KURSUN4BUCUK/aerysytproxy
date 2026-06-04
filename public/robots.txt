@@ -1,0 +1,29 @@
+# Aerys - YouTube Analytics Platform
+# https://www.aerys.com
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /api/
+
+# Sitemap
+Sitemap: https://yourdomain.com/sitemap.xml
+
+# Crawl-delay (saniye)
+Crawl-delay: 1
+
+# Specific bot rules
+User-agent: Googlebot
+Allow: /
+Disallow: /dashboard
+Disallow: /api/
+
+User-agent: Bingbot
+Allow: /
+Disallow: /dashboard
+Disallow: /api/
+
+User-agent: Yandex
+Allow: /
+Disallow: /dashboard
+Disallow: /api/
