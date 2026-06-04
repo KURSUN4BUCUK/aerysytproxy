@@ -78,7 +78,7 @@
         }
         .analysis-box.show { display: block; }
         .analysis-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; margin-bottom: 15px; }
-        .analysis-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
+        .analysis-meta { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 15px; }
 
         /* Utility */
         .loading { display: none; text-align: center; font-family: 'JetBrains Mono', monospace; color: var(--accent); padding: 20px; }
@@ -117,12 +117,14 @@
                 <div class="analysis-box" id="analysisCard">
                     <img id="anThumb" class="analysis-img" src="" alt="Thumbnail">
                     <h4 id="anTitle" style="font-size:15px; margin-bottom:10px;">Video Başlığı</h4>
-                    <p id="anDesc" style="font-size:12px; color:var(--text2); line-height:1.4;"></p>
+                    <p id="anDesc" style="font-size:12px; color:var(--text2); line-height:1.4; margin-bottom:15px;"></p>
                     
                     <div class="analysis-meta">
-                        <div class="stat-box"><span id="anLabel1">İzlenme</span><strong id="anVal1">-</strong></div>
-                        <div class="stat-box"><span id="anLabel2">Beğeni</span><strong id="anVal2">-</strong></div>
-                        <div class="stat-box"><span>Etkileşim Oranı</span><strong id="anValEng" style="color:#22c55e;">-</strong></div>
+                        <div class="stat-box"><span>İzlenme</span><strong id="anViews">-</strong></div>
+                        <div class="stat-box"><span>Beğeni</span><strong id="anLikes">-</strong></div>
+                        <div class="stat-box"><span>Yorum</span><strong id="anComments">-</strong></div>
+                        <div class="stat-box"><span>Süre</span><strong id="anDuration" style="color:#3b82f6;">-</strong></div>
+                        <div class="stat-box"><span>Etkileşim</span><strong id="anValEng" style="color:#22c55e;">-</strong></div>
                         <div class="stat-box"><span>Skor</span><strong id="anValScore" style="color:#f59e0b;">-</strong></div>
                     </div>
                 </div>
@@ -209,6 +211,10 @@
         const card = document.getElementById('analysisCard');
         card.style.display = 'none';
 
+        // Loading göster
+        document.getElementById('anTitle').textContent = '🔄 Video analiz ediliyor...';
+        card.style.display = 'block';
+
         try {
             const res = await fetch('/api/v1/video/analyze', {
                 method: 'POST',
@@ -219,23 +225,31 @@
 
             if(!res.ok) throw new Error('Video analizi alınamadı.');
 
+            // Thumbnail
             document.getElementById('anThumb').src = data.video_info.thumbnail;
+            
+            // Başlık
             document.getElementById('anTitle').textContent = data.video_info.title;
-            document.getElementById('anDesc').textContent = data.video_info.description.substring(0, 120) + '...';
             
-            document.getElementById('anLabel1').textContent = "İzlenme";
-            document.getElementById('anVal1').textContent = data.video_info.view_count;
+            // Açıklama
+            const desc = data.video_info.description || 'Açıklama yok';
+            document.getElementById('anDesc').textContent = desc.substring(0, 200) + (desc.length > 200 ? '...' : '');
             
-            document.getElementById('anLabel2').textContent = "Beğeni";
-            document.getElementById('anVal2').textContent = data.video_info.like_count;
-            
-            document.getElementById('anValEng').textContent = data.video_info.analysis.engagement_rate;
-            document.getElementById('anValScore').textContent = data.video_info.analysis.score;
+            // İstatistikler
+            document.getElementById('anViews').textContent = data.video_info.view_count || '0';
+            document.getElementById('anLikes').textContent = data.video_info.like_count || '0';
+            document.getElementById('anComments').textContent = data.video_info.total_comments || '0';
+            document.getElementById('anDuration').textContent = data.video_info.duration || '-';
+            document.getElementById('anValEng').textContent = data.video_info.analysis.engagement_rate || '%0';
+            document.getElementById('anValScore').textContent = data.video_info.analysis.score || 'Bilinmiyor';
 
             card.style.display = 'block';
+            
+            console.log('✅ Video analizi tamamlandı:', data.video_info.title);
         } catch(e) {
             showToast(e.message);
-document.getElementById('analysisPlaceholder').style.display = 'block';
+            document.getElementById('analysisPlaceholder').style.display = 'block';
+            card.style.display = 'none';
         }
     }
 </script>
