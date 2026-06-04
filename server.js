@@ -22,16 +22,13 @@ const CLOUDFLARE_WORKER_URL = process.env.CLOUDFLARE_WORKER_URL || 'https://yt-p
 
 // Ortak Tünel Fonksiyonu
 async function fetchFromWorker(targetUrl) {
-    try {
-        const response = await axios.get(CLOUDFLARE_WORKER_URL, {
-            params: { url: targetUrl },
-            timeout: 30000
-        });
-        return response.data;
-    } catch (error) {
-        console.error(`❌ [PROXY ERROR]: ${error.message}`);
-        throw new Error(`Tünel hatası: YouTube verisi çekilemedi.`);
-    }
+    const response = await axios.get(CLOUDFLARE_WORKER_URL, {
+        params: { url: targetUrl },
+        timeout: 30000,
+        responseType: 'text'
+    });
+
+    return response.data;
 }
 
 const schemaChannel = Joi.object({ channel_url: Joi.string().uri().required() });
@@ -42,41 +39,87 @@ const schemaAnalyze = Joi.object({ video_id: Joi.string().required(), comment_li
 // ============================================================
 app.post('/api/v1/channel/init-public', async (req, res) => {
     const { error, value } = schemaChannel.validate(req.body);
-    if (error) return res.status(400).json({ detail: error.details[0].message });
-    
-    try {
-        const cleanUrl = value.channel_url.replace(/\/(videos|shorts|streams)\/?$/, '').replace(/\/$/, '');
-        const data = await fetchFromWorker(cleanUrl);
-        
-        if (!data) return res.status(404).json({ detail: 'Kanal verisi boş döndü.' });
+    if (error) {
+        return res.status(400).json({
+            detail: error.details[0].message
+        });
+    }
 
-        const sub = data.channel_follower_count || data.follower_count || data.subscribers;
-        const entries = data.entries || [];
-        
-        const videosBrief = entries.filter(e => e && e.id).map(e => ({
-            id: e.id,
-            title: e.title || 'Başlıksız Video',
-            thumbnail: `https://i.ytimg.com/vi/${e.id}/hqdefault.jpg`,
-            url: `https://www.youtube.com/watch?v=${e.id}`
-        }));
+    try {
+        const cleanUrl = value.channel_url
+            .replace(/\/$/, '');
+
+        const html = await fetchFromWorker(cleanUrl);
+
+        const titleMatch = html.match(/<title>(.*?)<\/title>/i);
+
+        const descriptionMatch =
+            html.match(/"description":"([^"]+)"/);
+
+        const avatarMatch =
+            html.match(/"avatar":{"thumbnails":\[\{"url":"([^"]+)/);
+
+        const subscriberMatch =
+            html.match(/"subscriberCountText":\{"simpleText":"([^"]+)/);
+
+        const videoRegex =
+            /"videoId":"([a-zA-Z0-9_-]{11})"/g;
+
+        const videos = [];
+        const seen = new Set();
+
+        let match;
+
+        while ((match = videoRegex.exec(html)) !== null) {
+            const id = match[1];
+
+            if (seen.has(id)) continue;
+            seen.add(id);
+
+            videos.push({
+                id,
+                title: `Video ${videos.length + 1}`,
+                thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+                url: `https://www.youtube.com/watch?v=${id}`
+            });
+
+            if (videos.length >= 12) break;
+        }
 
         res.json({
             success: true,
             channel_info: {
-                id: data.id || 'Bilinmiyor',
-                title: (data.title || data.uploader || 'YouTube Kanalı').replace(/ - Videos$/, ''),
-                description: data.description || 'Açıklama bulunmuyor.',
-                subscriber_count: sub ? `${Number(sub).toLocaleString('tr-TR')} abone` : 'Gizli veya Bilinmiyor',
-                total_videos_count: videosBrief.length,
-                avatar: data.thumbnails?.find(t => t.id === 'avatar_uncroped' || t.url?.includes('ch_profile'))?.url || data.thumbnails?.at(-1)?.url || 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png'
+                id: "youtube-channel",
+                title: titleMatch
+                    ? titleMatch[1].replace(' - YouTube', '')
+                    : 'YouTube Kanalı',
+
+                description: descriptionMatch
+                    ? descriptionMatch[1]
+                    : 'Açıklama bulunamadı.',
+
+                subscriber_count: subscriberMatch
+                    ? subscriberMatch[1]
+                    : 'Gizli veya Bilinmiyor',
+
+                total_videos_count: videos.length,
+
+                avatar: avatarMatch
+                    ? avatarMatch[1].replace(/\\u0026/g, '&')
+                    : 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png'
             },
-            videos: videosBrief.slice(0, 12)
+
+            videos
         });
+
     } catch (e) {
-        res.status(500).json({ detail: e.message });
+        console.error(e);
+
+        res.status(500).json({
+            detail: e.message
+        });
     }
 });
-
 // ============================================================
 // 2. ENDPOINT: TEK VİDEO DETAYI
 // ============================================================
