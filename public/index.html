@@ -1,491 +1,237 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aerys - YouTube Analiz Sistemi</title>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #06090d; --surface: #0c1017; --border: #1a2332;
+            --accent: #ff3344; --text: #f0f4f8; --text2: #90a4be;
+        }
+        body {
+            background: var(--bg); color: var(--text);
+            font-family: 'Syne', sans-serif; padding-bottom: 60px;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        
+        /* Navbar */
+        nav { display: flex; align-items: center; padding: 20px 0; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+        .logo { font-size: 22px; font-weight: 800; color: #fff; display: flex; align-items: center; gap: 10px; }
+        .logo-dot { width: 10px; height: 10px; background: var(--accent); border-radius: 50%; }
 
-<!-- Primary Meta Tags -->
-<title>Aerys - YouTube Kanal Analiz ve İstatistik Platformu | Ücretsiz Analytics</title>
-<meta name="title" content="Aerys - YouTube Kanal Analiz ve İstatistik Platformu | Ücretsiz Analytics"/>
-<meta name="description" content="Aerys ile YouTube kanallarını ücretsiz analiz edin. Abone sayısı, video istatistikleri, engagement rate ve kanal performansını anında öğrenin. API desteği ile güçlü analytics çözümleri."/>
-<meta name="keywords" content="aerys, youtube analiz, youtube analytics, kanal istatistikleri, youtube api, video analizi, abone analizi, youtube engagement, youtube scraper, youtube data, kanal performansı, youtube metrics"/>
-<meta name="author" content="Aerys Analytics"/>
-<meta name="robots" content="index, follow"/>
-<meta name="language" content="Turkish"/>
-<meta name="revisit-after" content="7 days"/>
+        /* Hero */
+        .hero { text-align: center; margin-bottom: 40px; }
+        .hero h1 { font-size: 38px; font-weight: 800; margin-bottom: 10px; }
+        .hero p { color: var(--text2); font-size: 15px; }
 
-<!-- Open Graph / Facebook -->
-<meta property="og:type" content="website"/>
-<meta property="og:url" content="https://yourdomain.com/"/>
-<meta property="og:title" content="Aerys - YouTube Kanal Analiz Platformu"/>
-<meta property="og:description" content="YouTube kanallarını ücretsiz analiz edin. Abone sayısı, video performansı ve engagement rate'i anında öğrenin."/>
-<meta property="og:image" content="/logo/aerys.png"/>
-<meta property="og:site_name" content="Aerys"/>
+        /* Search Box */
+        .search-area {
+            background: var(--surface); border: 1px solid var(--border);
+            padding: 8px; border-radius: 12px; display: flex; gap: 10px; margin-bottom: 40px;
+        }
+        .search-area input {
+            flex: 1; background: none; border: none; outline: none;
+            color: #fff; font-family: 'JetBrains Mono', monospace; padding: 12px; font-size: 14px;
+        }
+        .search-area button {
+            background: var(--accent); color: #fff; border: none; padding: 12px 24px;
+            border-radius: 8px; font-weight: 700; cursor: pointer; font-family: 'Syne', sans-serif; transition: 0.2s;
+        }
+        .search-area button:hover { opacity: 0.9; }
+        .search-area button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-<!-- Twitter -->
-<meta property="twitter:card" content="summary_large_image"/>
-<meta property="twitter:url" content="https://yourdomain.com/"/>
-<meta property="twitter:title" content="Aerys - YouTube Kanal Analiz Platformu"/>
-<meta property="twitter:description" content="YouTube kanallarını ücretsiz analiz edin. Abone sayısı, video performansı ve engagement rate'i anında öğrenin."/>
-<meta property="twitter:image" content="/logo/aerys.png"/>
+        /* Results Elements */
+        .results-section { display: none; flex-direction: column; gap: 30px; }
+        .results-section.show { display: flex; }
 
-<!-- Favicon -->
-<link rel="icon" type="image/png" sizes="32x32" href="/logo/aerys.png"/>
-<link rel="icon" type="image/png" sizes="16x16" href="/logo/aerys.png"/>
-<link rel="apple-touch-icon" href="/logo/aerys.png"/>
+        /* Channel Info Card */
+        .channel-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 16px; padding: 24px; display: flex; gap: 20px; align-items: center;
+        }
+        .channel-avatar { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border); }
+        .channel-details h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+        .channel-details p { color: var(--text2); font-size: 13px; margin-bottom: 12px; }
+        .stats-row { display: flex; gap: 20px; }
+        .stat-box { background: rgba(255,255,255,0.02); padding: 8px 16px; border-radius: 6px; border: 1px solid var(--border); }
+        .stat-box span { display: block; font-size: 11px; color: var(--text2); font-family: 'JetBrains Mono', monospace; }
+        .stat-box strong { font-size: 16px; color: var(--accent); }
 
-<!-- Schema.org for Google -->
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebApplication",
-  "name": "Aerys",
-  "alternateName": "Aerys Analytics",
-  "url": "https://yourdomain.com",
-  "logo": "https://yourdomain.com/logo/aerys.png",
-  "description": "YouTube kanal analiz ve istatistik platformu. Ücretsiz analytics, API desteği ve gerçek zamanlı veri.",
-  "applicationCategory": "Analytics",
-  "operatingSystem": "Web",
-  "offers": {
-    "@type": "Offer",
-    "price": "0",
-    "priceCurrency": "USD"
-  },
-  "featureList": [
-    "YouTube Kanal Analizi",
-    "Video İstatistikleri",
-    "Engagement Rate Hesaplama",
-    "API Entegrasyonu",
-    "Gerçek Zamanlı Veri"
-  ]
-}
-</script>
+        /* Video List & Analysis Block */
+        .main-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 30px; }
+        .v-list h3, .v-analysis h3 { font-size: 18px; margin-bottom: 15px; font-weight: 700; }
+        .video-item {
+            background: var(--surface); border: 1px solid var(--border); padding: 10px;
+            border-radius: 8px; display: flex; gap: 12px; margin-bottom: 10px; cursor: pointer; transition: 0.2s;
+        }
+        .video-item:hover { border-color: var(--accent); }
+        .video-item img { width: 100px; aspect-ratio: 16/9; object-fit: cover; border-radius: 4px; }
+        .video-item-title { font-size: 13px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-<link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#080b0f;--surface:#0e1318;--surface2:#141a22;--surface3:#1a2330;
-  --border:#1e2a38;--accent:#e63946;--accent2:#ff6b6b;
-  --text:#e8edf2;--text2:#8899aa;--muted:#4a5a6a;
-  --green:#22c55e;--yellow:#f59e0b;--blue:#3b82f6;
-}
-body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;}
+        /* Analysis Container */
+        .analysis-box {
+            background: var(--surface); border: 1px solid var(--border); padding: 20px; border-radius: 16px;
+            position: sticky; top: 20px; display: none;
+        }
+        .analysis-box.show { display: block; }
+        .analysis-img { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; margin-bottom: 15px; }
+        .analysis-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px; }
 
-/* HEADER */
-.header{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(8,11,15,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);}
-.nav{max-width:1200px;margin:0 auto;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;}
-.logo{display:flex;align-items:center;gap:10px;}
-.logo-icon{width:32px;height:32px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.logo-icon svg{width:16px;height:16px;fill:#fff;}
-.logo-text{font-size:15px;font-weight:800;}
-.nav-links{display:flex;gap:8px;align-items:center;}
-.nav-btn{padding:8px 14px;border-radius:7px;font-size:13px;font-weight:700;cursor:pointer;transition:.15s;border:none;font-family:'Syne',sans-serif;}
-.nav-btn-ghost{background:transparent;color:var(--text2);border:1px solid var(--border);}
-.nav-btn-ghost:hover{background:var(--surface2);color:var(--text);}
-.nav-btn-primary{background:var(--accent);color:#fff;}
-.nav-btn-primary:hover{background:#c1121f;}
-
-/* HERO */
-.hero{padding:120px 24px 60px;text-align:center;max-width:900px;margin:0 auto;}
-.hero-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.25);padding:5px 12px;border-radius:20px;font-size:12px;font-weight:700;color:var(--accent);margin-bottom:20px;}
-.hero-title{font-size:48px;font-weight:800;line-height:1.1;margin-bottom:16px;background:linear-gradient(135deg,var(--text) 0%,var(--text2) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;}
-.hero-desc{font-size:16px;color:var(--text2);line-height:1.6;margin-bottom:40px;}
-
-/* SEARCH */
-.search-box{max-width:650px;margin:0 auto 60px;position:relative;}
-.search-input-wrap{display:flex;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:6px;transition:.2s;}
-.search-input-wrap:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px rgba(230,57,70,.15);}
-.search-input{flex:1;background:none;border:none;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;padding:10px 14px;outline:none;}
-.search-input::placeholder{color:var(--muted);}
-.search-btn{padding:10px 24px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;display:flex;align-items:center;gap:6px;}
-.search-btn:hover{background:#c1121f;}
-.search-btn:disabled{opacity:.5;cursor:not-allowed;}
-.search-btn svg{width:16px;height:16px;}
-
-/* RESULTS */
-.results{max-width:1000px;margin:0 auto;padding:0 24px 60px;display:none;}
-.results.show{display:block;}
-
-.channel-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;margin-bottom:32px;display:flex;gap:24px;align-items:start;}
-.channel-avatar{width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid var(--border);}
-.channel-info{flex:1;}
-.channel-title{font-size:24px;font-weight:800;margin-bottom:6px;}
-.channel-stats{display:flex;gap:24px;margin-top:12px;}
-.stat-item{display:flex;flex-direction:column;}
-.stat-label{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--muted);text-transform:uppercase;margin-bottom:4px;}
-.stat-value{font-size:20px;font-weight:800;color:var(--accent);}
-
-.videos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px;}
-.video-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;overflow:hidden;transition:.2s;cursor:pointer;}
-.video-card:hover{transform:translateY(-4px);border-color:var(--accent);}
-.video-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;background:var(--surface2);}
-.video-content{padding:14px;}
-.video-title{font-size:14px;font-weight:700;line-height:1.4;margin-bottom:8px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
-
-/* AUTH MODAL */
-.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
-.modal.show{display:flex;}
-.modal-content{width:420px;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;position:relative;max-height:90vh;overflow-y:auto;}
-.modal-close{position:absolute;top:16px;right:16px;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px;border-radius:4px;transition:.15s;}
-.modal-close:hover{color:var(--text);background:var(--surface2);}
-.modal-title{font-size:22px;font-weight:800;margin-bottom:20px;}
-.tabs{display:flex;background:var(--surface2);border-radius:8px;padding:4px;margin-bottom:24px;border:1px solid var(--border);}
-.tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:700;border-radius:6px;cursor:pointer;transition:.2s;color:var(--muted);}
-.tab.active{background:var(--accent);color:#fff;}
-.form{display:none;flex-direction:column;gap:14px;}
-.form.active{display:flex;}
-label{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;margin-bottom:4px;display:block;}
-input[type="email"],input[type="password"],input[type="text"]{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;transition:.2s;}
-input:focus{border-color:var(--accent);}
-.btn-submit{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:.15s;margin-top:4px;}
-.btn-submit:hover{background:#c1121f;}
-.msg{font-size:12px;font-family:'JetBrains Mono',monospace;padding:10px 12px;border-radius:6px;margin-bottom:14px;display:none;}
-.msg.error{background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.3);color:var(--accent2);}
-.msg.success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green);}
-.msg.show{display:block;}
-
-/* LOADING */
-.loading{text-align:center;padding:40px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:13px;}
-.spinner{width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* FOOTER */
-.footer{text-align:center;padding:40px 24px;color:var(--muted);font-size:13px;border-top:1px solid var(--border);}
-
-/* MOBILE */
-@media (max-width:768px){
-  .hero-title{font-size:32px;}
-  .channel-card{flex-direction:column;text-align:center;}
-  .channel-stats{justify-content:center;}
-  .videos-grid{grid-template-columns:1fr;}
-  .modal-content{width:calc(100% - 32px);}
-}
-
-/* TOAST */
-.toast{position:fixed;bottom:24px;right:24px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 18px;font-size:13px;font-family:'JetBrains Mono',monospace;z-index:999;transform:translateY(80px);opacity:0;transition:.3s;}
-.toast.show{transform:translateY(0);opacity:1;}
-.toast.ok{border-color:rgba(34,197,94,.4);color:var(--green);}
-.toast.err{border-color:rgba(230,57,70,.4);color:var(--accent2);}
-</style>
+        /* Utility */
+        .loading { display: none; text-align: center; font-family: 'JetBrains Mono', monospace; color: var(--accent); padding: 20px; }
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #e63946; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 700; display: none; z-index: 99; }
+    </style>
 </head>
 <body>
 
-<!-- HEADER -->
-<header class="header">
-  <nav class="nav">
-    <div class="logo" style="cursor:pointer" onclick="location.href='/'">
-      <div class="logo-icon">
-        <svg viewBox="0 0 24 24"><path d="M10 15l5.19-3L10 9v6m11.56-7.83c.13.47.22 1.1.28 1.9.07.8.1 1.49.1 2.09L22 12c0 2.19-.16 3.8-.44 4.83-.25.9-.83 1.48-1.73 1.73-.47.13-1.33.22-2.65.28-1.3.07-2.49.1-3.59.1L12 19c-4.19 0-6.8-.16-7.83-.44-.9-.25-1.48-.83-1.73-1.73-.13-.47-.22-1.1-.28-1.9-.07-.8-.1-1.49-.1-2.09L2 12c0-2.19.16-3.8.44-4.83.25-.9.83-1.48 1.73-1.73.47-.13 1.33-.22 2.65-.28 1.3-.07 2.49-.1 3.59-.1L12 5c4.19 0 6.8.16 7.83.44.9.25 1.48.83 1.73 1.73z"/></svg>
-      </div>
-      <div class="logo-text">Aerys</div>
+<div class="container">
+    <nav>
+        <div class="logo"><div class="logo-dot"></div>Aerys Engine</div>
+    </nav>
+
+    <div class="hero">
+        <h1>YouTube Kanal İnceleme İstasyonu</h1>
+        <p>Herhangi bir kanal URL'si girin, verileri ve video analizlerini anında çıkartın.</p>
     </div>
-    <div class="nav-links" id="navLinks">
-      <button class="nav-btn nav-btn-ghost" onclick="openAuthModal('login')">Giriş Yap</button>
-      <button class="nav-btn nav-btn-primary" onclick="openAuthModal('register')">Kayıt Ol</button>
+
+    <div class="search-area">
+        <input type="text" id="inputUrl" placeholder="https://www.youtube.com/@KanalAdi veya URL">
+        <button id="btnAction" onclick="startAnalysis()">Sorgula</button>
     </div>
-  </nav>
-</header>
 
-<!-- HERO -->
-<section class="hero">
-  <div class="hero-badge">
-    <svg viewBox="0 0 24 24" fill="currentColor" style="width:14px;height:14px"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-    Ücretsiz YouTube Analytics
-  </div>
-  <h1 class="hero-title">Herhangi Bir YouTube Kanalını Analiz Edin</h1>
-  <p class="hero-desc">Kanal istatistiklerini, video performansını ve abone sayılarını anında öğrenin. API anahtarı gerektirmez, tamamen ücretsiz.</p>
+    <div class="loading" id="loader">🔄 İstasyon verileri işliyor, lütfen bekleyin...</div>
 
-  <!-- SEARCH -->
-  <div class="search-box">
-    <div class="search-input-wrap">
-      <input type="text" class="search-input" id="channelUrl" placeholder="https://www.youtube.com/@MrBeast" />
-      <button class="search-btn" id="searchBtn" onclick="analyzeChannel()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        Analiz Et
-      </button>
+    <div class="results-section" id="resultsBlock">
+        <div id="channelCardContainer"></div>
+
+        <div class="main-layout">
+            <div class="v-list">
+                <h3>Son Videolar (Analiz için tıklayın)</h3>
+                <div id="videoListContainer"></div>
+            </div>
+            <div class="v-analysis">
+                <h3>Etkileşim Analiz Laboratuvarı</h3>
+                <div class="analysis-box" id="analysisCard">
+                    <img id="anThumb" class="analysis-img" src="" alt="Thumbnail">
+                    <h4 id="anTitle" style="font-size:15px; margin-bottom:10px;">Video Başlığı</h4>
+                    <p id="anDesc" style="font-size:12px; color:var(--text2); line-height:1.4;"></p>
+                    
+                    <div class="analysis-meta">
+                        <div class="stat-box"><span id="anLabel1">İzlenme</span><strong id="anVal1">-</strong></div>
+                        <div class="stat-box"><span id="anLabel2">Beğeni</span><strong id="anVal2">-</strong></div>
+                        <div class="stat-box"><span>Etkileşim Oranı</span><strong id="anValEng" style="color:#22c55e;">-</strong></div>
+                        <div class="stat-box"><span>Skor</span><strong id="anValScore" style="color:#f59e0b;">-</strong></div>
+                    </div>
+                </div>
+                <div id="analysisPlaceholder" style="color:var(--text2); font-size:13px; text-align:center; padding:40px; background:var(--surface); border:1px solid var(--border); border-radius:16px;">
+                    Verileri görmek için soldaki videolardan birine tıklayın.
+                </div>
+            </div>
+        </div>
     </div>
-  </div>
-</section>
-
-<!-- RESULTS -->
-<section class="results" id="results">
-  <div id="channelResult"></div>
-  <div id="videosResult"></div>
-</section>
-
-<!-- LOADING -->
-<div class="loading" id="loading" style="display:none">
-  <div class="spinner"></div>
-  Kanal analiz ediliyor...
 </div>
 
-<!-- AUTH MODAL -->
-<div class="modal" id="authModal">
-  <div class="modal-content">
-    <button class="modal-close" onclick="closeAuthModal()">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:20px;height:20px"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
-    <h2 class="modal-title">Hesap</h2>
-    
-    <div class="tabs">
-      <div class="tab active" onclick="switchAuthTab('login')">Giriş Yap</div>
-      <div class="tab" onclick="switchAuthTab('register')">Kayıt Ol</div>
-    </div>
-
-    <div id="authMsg" class="msg"></div>
-
-    <form class="form active" id="loginForm" onsubmit="handleLogin(event)">
-      <div><label>Email</label><input type="email" id="loginEmail" placeholder="ornek@mail.com" required/></div>
-      <div><label>Şifre</label><input type="password" id="loginPass" placeholder="••••••••" required/></div>
-      <button class="btn-submit" type="submit">Giriş Yap →</button>
-    </form>
-
-    <form class="form" id="registerForm" onsubmit="handleRegister(event)">
-      <div><label>Kullanıcı Adı</label><input type="text" id="regUser" placeholder="kullanici_adi" required/></div>
-      <div><label>Email</label><input type="email" id="regEmail" placeholder="ornek@mail.com" required/></div>
-      <div><label>Şifre</label><input type="password" id="regPass" placeholder="Min. 6 karakter" required/></div>
-      <button class="btn-submit" type="submit">Hesap Oluştur →</button>
-    </form>
-  </div>
-</div>
-
-<!-- FOOTER -->
-<footer class="footer">
-  <p>Aerys © 2026 — YouTube Analytics Platform</p>
-</footer>
-
-<div class="toast" id="toast"></div>
+<div class="toast" id="toastBox"></div>
 
 <script>
-// Auth state check
-const token = localStorage.getItem('yt_token');
-const username = localStorage.getItem('yt_username');
-
-if (token) {
-  document.getElementById('navLinks').innerHTML = `
-    <span style="color:var(--text2);font-size:13px;font-family:'JetBrains Mono',monospace">Merhaba, <b style="color:var(--text)">${username}</b></span>
-    <button class="nav-btn nav-btn-primary" onclick="location.href='/dashboard'">Dashboard →</button>
-  `;
-}
-
-// Search on Enter
-document.getElementById('channelUrl').addEventListener('keypress', (e) => {
-  if (e.key === 'Enter') analyzeChannel();
-});
-
-// Analyze channel
-async function analyzeChannel() {
-  const url = document.getElementById('channelUrl').value.trim();
-  if (!url) {
-    toast('Lütfen bir YouTube kanal URL\'si girin', 'err');
-    return;
-  }
-
-  const btn = document.getElementById('searchBtn');
-  const loading = document.getElementById('loading');
-  const results = document.getElementById('results');
-  
-  btn.disabled = true;
-  btn.innerHTML = '<div style="width:16px;height:16px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite"></div>Analiz ediliyor...';
-  loading.style.display = 'block';
-  results.classList.remove('show');
-
-  try {
-    const response = await fetch('/api/v1/channel/init-public', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ channel_url: url })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      toast(data.detail || 'Kanal analiz edilemedi', 'err');
-      return;
+    function showToast(msg) {
+        const t = document.getElementById('toastBox');
+        t.textContent = msg; t.style.display = 'block';
+        setTimeout(() => t.style.display = 'none', 4000);
     }
 
-    renderResults(data);
-    results.classList.add('show');
-    toast('Kanal başarıyla analiz edildi!', 'ok');
+    async function startAnalysis() {
+        const url = document.getElementById('inputUrl').value.trim();
+        if(!url) return showToast('Lütfen geçerli bir URL girin.');
 
-  } catch (error) {
-    toast('Bir hata oluştu: ' + error.message, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = `
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      Analiz Et
-    `;
-    loading.style.display = 'none';
-  }
-}
+        const btn = document.getElementById('btnAction');
+        const loader = document.getElementById('loader');
+        const block = document.getElementById('resultsBlock');
 
-function renderResults(data) {
-  const { channel_info, videos } = data;
-  
-  // Channel card
-  document.getElementById('channelResult').innerHTML = `
-    <div class="channel-card">
-      ${channel_info.avatar ? `<img src="${channel_info.avatar}" alt="${channel_info.title}" class="channel-avatar" onerror="this.style.display='none'"/>` : ''}
-      <div class="channel-info">
-        <h2 class="channel-title">${escapeHtml(channel_info.title)}</h2>
-        <p style="color:var(--text2);font-size:14px;margin-top:4px">${escapeHtml(channel_info.description.substring(0, 150))}${channel_info.description.length > 150 ? '...' : ''}</p>
-        <div class="channel-stats">
-          <div class="stat-item">
-            <span class="stat-label">Abone Sayısı</span>
-            <span class="stat-value">${channel_info.subscriber_count}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Toplam Video</span>
-            <span class="stat-value">${channel_info.total_videos_count}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">Kanal ID</span>
-            <span class="stat-value" style="font-size:14px;color:var(--text2)">${channel_info.id.substring(0, 12)}...</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
+        btn.disabled = true; loader.style.display = 'block'; block.classList.remove('show');
+        document.getElementById('analysisCard').style.display = 'none';
+        document.getElementById('analysisPlaceholder').style.style = 'block';
 
-  // Videos grid
-  const videosHtml = videos.slice(0, 12).map(v => `
-    <div class="video-card" onclick="window.open('${v.url}', '_blank')">
-      <img src="${v.thumbnail}" alt="${escapeHtml(v.title)}" class="video-thumb" loading="lazy"/>
-      <div class="video-content">
-        <div class="video-title">${escapeHtml(v.title)}</div>
-      </div>
-    </div>
-  `).join('');
+        try {
+            const res = await fetch('/api/v1/channel/init-public', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ channel_url: url })
+            });
+            const data = await res.json();
 
-  document.getElementById('videosResult').innerHTML = `
-    <h3 style="font-size:20px;font-weight:800;margin-bottom:20px">Son Videolar (${videos.length})</h3>
-    <div class="videos-grid">${videosHtml}</div>
-  `;
-}
+            if(!res.ok) throw new Error(data.detail || 'Kanal bulunamadı.');
 
-// Auth Modal
-function openAuthModal(tab) {
-  document.getElementById('authModal').classList.add('show');
-  switchAuthTab(tab);
-}
+            // Kanal Bilgilerini Bas
+            document.getElementById('channelCardContainer').innerHTML = `
+                <div class="channel-card">
+                    <img class="channel-avatar" src="${data.channel_info.avatar}" alt="avatar">
+                    <div class="channel-details">
+                        <h2>${data.channel_info.title}</h2>
+                        <p>${data.channel_info.description.substring(0, 180)}...</p>
+                        <div class="stats-row">
+                            <div class="stat-box"><span>Aboneler</span><strong>${data.channel_info.subscriber_count}</strong></div>
+                            <div class="stat-box"><span>Taranan Video</span><strong>${data.channel_info.total_videos_count}</strong></div>
+                        </div>
+                    </div>
+                </div>
+            `;
 
-function closeAuthModal() {
-  document.getElementById('authModal').classList.remove('show');
-  hideAuthMsg();
-}
+            // Videoları listele
+            const listHtml = data.videos.map(v => `
+                <div class="video-item" onclick="getDetailedAnalysis('${v.id}')">
+                    <img src="${v.thumbnail}" alt="thumb">
+                    <div class="video-item-title">${v.title}</div>
+                </div>
+            `).join('');
+            
+            document.getElementById('videoListContainer').innerHTML = listHtml || '<p style="color:var(--text2); padding:20px;">Video bulunamadı.</p>';
+            block.classList.add('show');
 
-function switchAuthTab(tab) {
-  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', (tab === 'login' && i === 0) || (tab === 'register' && i === 1)));
-  document.getElementById('loginForm').classList.toggle('active', tab === 'login');
-  document.getElementById('registerForm').classList.toggle('active', tab === 'register');
-  hideAuthMsg();
-}
-
-function showAuthMsg(text, type) {
-  const el = document.getElementById('authMsg');
-  el.textContent = text;
-  el.className = `msg ${type} show`;
-}
-
-function hideAuthMsg() {
-  document.getElementById('authMsg').className = 'msg';
-}
-
-async function handleLogin(e) {
-  e.preventDefault();
-  const btn = e.target.querySelector('button');
-  btn.textContent = 'Giriş yapılıyor...';
-  btn.disabled = true;
-
-  try {
-    const r = await fetch('/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: document.getElementById('loginEmail').value,
-        password: document.getElementById('loginPass').value
-      })
-    });
-    const d = await r.json();
-
-    if (!r.ok) {
-      showAuthMsg(d.detail, 'error');
-      return;
+        } catch(e) {
+            showToast(e.message);
+        } finally {
+            btn.disabled = false; loader.style.display = 'none';
+        }
     }
 
-    localStorage.setItem('yt_token', d.token);
-    localStorage.setItem('yt_username', d.username);
-    showAuthMsg('Giriş başarılı! Yönlendiriliyorsunuz...', 'success');
-    setTimeout(() => location.href = '/dashboard', 800);
+    async function getDetailedAnalysis(id) {
+        document.getElementById('analysisPlaceholder').style.display = 'none';
+        const card = document.getElementById('analysisCard');
+        card.style.display = 'none';
 
-  } catch {
-    showAuthMsg('Sunucu hatası.', 'error');
-  } finally {
-    btn.textContent = 'Giriş Yap →';
-    btn.disabled = false;
-  }
-}
+        try {
+            const res = await fetch('/api/v1/video/analyze', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ video_id: id })
+            });
+            const data = await res.json();
 
-async function handleRegister(e) {
-  e.preventDefault();
-  const btn = e.target.querySelector('button');
-  btn.textContent = 'Oluşturuluyor...';
-  btn.disabled = true;
+            if(!res.ok) throw new Error('Video analizi alınamadı.');
 
-  try {
-    const r = await fetch('/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: document.getElementById('regUser').value,
-        email: document.getElementById('regEmail').value,
-        password: document.getElementById('regPass').value
-      })
-    });
-    const d = await r.json();
+            document.getElementById('anThumb').src = data.video_info.thumbnail;
+            document.getElementById('anTitle').textContent = data.video_info.title;
+            document.getElementById('anDesc').textContent = data.video_info.description.substring(0, 120) + '...';
+            
+            document.getElementById('anLabel1').textContent = "İzlenme";
+            document.getElementById('anVal1').textContent = data.video_info.view_count;
+            
+            document.getElementById('anLabel2').textContent = "Beğeni";
+            document.getElementById('anVal2').textContent = data.video_info.like_count;
+            
+            document.getElementById('anValEng').textContent = data.video_info.analysis.engagement_rate;
+            document.getElementById('anValScore').textContent = data.video_info.analysis.score;
 
-    if (!r.ok) {
-      showAuthMsg(d.detail, 'error');
-      return;
+            card.style.display = 'block';
+        } catch(e) {
+            showToast(e.message);
+            document.getElementById('analysisPlaceholder').style.display = 'block';
+        }
     }
-
-    localStorage.setItem('yt_token', d.token);
-    localStorage.setItem('yt_username', d.username);
-    showAuthMsg('Hesap oluşturuldu! Yönlendiriliyorsunuz...', 'success');
-    setTimeout(() => location.href = '/dashboard', 800);
-
-  } catch {
-    showAuthMsg('Sunucu hatası.', 'error');
-  } finally {
-    btn.textContent = 'Hesap Oluştur →';
-    btn.disabled = false;
-  }
-}
-
-// Toast
-let toastTimer;
-function toast(msg, type) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = `toast ${type} show`;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.className = 'toast', 3000);
-}
-
-// Helper
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
-
-// Close modal on backdrop click
-document.getElementById('authModal').addEventListener('click', (e) => {
-  if (e.target.id === 'authModal') closeAuthModal();
-});
 </script>
 </body>
 </html>
