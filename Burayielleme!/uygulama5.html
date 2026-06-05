@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+<style>
+    body{background-color: gray; font-weight: bold;}
+#genelCerceve{background-color:lightblue; border-radius: 10px;
+ width: 400px; height: 500px; }
+#mesajGirisi{background-color: white; border-radius: 10px;
+ width: 400px; height: 70px; }
+#mesajGirisi > img{ width: 50px; height: 50px; float: left;
+ margin-left:30px; margin-top:10px; }
+#mesajGirisi>input{ margin-top:30px; margin-left:10px; }
+#mesajKutulari{ background-color: white; border-radius: 3px;
+ width: 380px; height: auto; margin-left:10px; }
+.gidenMesaj{ border-bottom:2px gray solid; }
+.gidenMesaj > img{ width: 20px; height: 20px; margin:5px 5px 0px 5px; }
+#tarih{ color:gray; font-size:10px; }
+</style>
+<body>
+
+    <div id="genelCerceve">
+ <div id="mesajGirisi">
+ <img src="profil.png">
+ <input type="text" id="mesaj" placeholder="Mesajınızı giriniz.">
+ <input type="button" value="Gönder" onclick="mesajGonder()">
+ </div>
+ <hr>
+ <div id="mesajKutulari">
+ <!-- Buraya innerHTML komutu ile kodlar eklenecek -->
+ </div>
+</div>
+
+<script>
+    function mesajGonder(){
+ var mesaj=document.getElementById("mesaj").value;
+ var d = new Date();
+ var saat=d.getHours();
+ var dakika=d.getMinutes();
+ document.getElementById("mesajKutulari").innerHTML+=
+ "<div class='gidenMesaj'> <img src='profil.png'>"
+ + mesaj +
+ "<span id='tarih'>"+saat+":"+dakika+"</span></div>";
+ document.getElementById("mesaj").value="";
+}
+</script>
+    
+</body>
+</html>

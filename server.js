@@ -1,170 +1,121 @@
 const express = require('express');
-const cors = require('cors');
-const dotenv = require('dotenv');
+const YTDlpWrap = require('yt-dlp-wrap').default;
 const path = require('path');
 const fs = require('fs');
-const { execFile } = require('child_process');
 
-dotenv.config();
-const app = express();
+const app = express(); // Webpack hatası düzeltildi kanka, temizlendi
+const PORT = process.env.PORT || 3000;
 
-app.use(cors({ origin: '*' }));
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public'));
 
-// Render.com ve lokal ortam binary köprüsü
-const YT_DLP_PATH = fs.existsSync(path.join(process.cwd(), 'bin', 'yt-dlp')) 
-    ? path.join(process.cwd(), 'bin', 'yt-dlp') 
-    : 'yt-dlp';
+const isWindows = process.platform === 'win32';
+const binaryPath = path.join(__dirname, 'bin', isWindows ? 'yt-dlp.exe' : 'yt-dlp');
 
-// EACCES (Permission Denied) koruması
-if (YT_DLP_PATH !== 'yt-dlp') {
+app.get('/api/scrape', async (req, res) => {
     try {
-        fs.chmodSync(YT_DLP_PATH, '755');
-        console.log('🛡️ [Aerys Engine] yt-dlp çalışma izinleri doğrulandı.');
-    } catch (err) {
-        console.error('⚠️ İzin hatası:', err.message);
-    }
-}
+        let { channel } = req.query;
+        if (!channel) return res.status(400).json({ error: 'Kanal linki gerekli.' });
 
-// Global optimize edilmiş yt-dlp çalıştırıcı core fonksiyonu
-function runYtDlp(args) {
-    return new Promise((resolve, reject) => {
-        // Render CPU yükünü hafifletmek ve YouTube bot korumasını geçmek için optimizasyon bayrakları
-        const optimizationFlags = [
-            '--no-warnings',
-            '--no-call-home',
-            '--no-check-certificates',
-            '--extractor-args', 'youtube:player_client=android' // YouTube veri merkezi bloklarını aşar ve aşırı hızlıdır
-        ];
+        // 1. ADIM: Girdiyi decode et ve proxy varsa temizle
+        let decodedChannel = decodeURIComponent(channel.trim());
+        if (decodedChannel.includes('yt-proxy.psoresmi.workers.dev')) {
+            const urlParams = new URLSearchParams(decodedChannel.split('?')[1]);
+            if (urlParams.has('url')) decodedChannel = urlParams.get('url');
+        }
+
+        // 2. ADIM: Sadece handle kısmını cımbızla çekiyoruz
+        let handle = '';
+        const handleMatch = decodedChannel.match(/(@[\w\.\-]+)/);
+        if (handleMatch) {
+            handle = handleMatch[1];
+        } else {
+            handle = '@' + decodedChannel.replace(/[^a-zA-Z0-9\.\-_]/g, '');
+        }
+
+        // Doğrudan kanalın /videos sekmesine vuruyoruz (Ultra hızlı mod)
+        const targetYoutubeUrl = `https://www.youtube.com/${handle}/videos`;
+        console.log(`[Fast Engine Launching]: ${targetYoutubeUrl}`);
+
+        if (!fs.existsSync(binaryPath)) {
+            return res.status(500).json({ error: 'yt-dlp binary bulunamadı.' });
+        }
         
-        const finalArgs = [...optimizationFlags, ...args];
+        const ytDlpWrap = new YTDlpWrap(binaryPath);
 
-        execFile(YT_DLP_PATH, finalArgs, { maxBuffer: 1024 * 1024 * 50 }, (error, stdout, stderr) => {
-            if (error) {
-                return reject(new Error(stderr || error.message));
-            }
-            try {
-                resolve(JSON.parse(stdout));
-            } catch (e) {
-                reject(new Error('JSON parse hatası: ' + e.message));
-            }
-        });
-    });
-}
-
-// 1. ENDPOINT: KANAL BİLGİLERİ VE TÜM VİDEOLAR
-app.post('/api/v1/channel/init-public', async (req, res) => {
-    let { channel_url } = req.body;
-    if (!channel_url) return res.status(400).json({ detail: 'Kanal URL zorunlu.' });
-
-    if (!channel_url.includes('youtube.com')) {
-        channel_url = `https://www.youtube.com/${channel_url.startsWith('@') ? '' : '@'}${channel_url}`;
-    }
-    
-    const baseChannelUrl = channel_url.replace(/\/videos$/, '').replace(/\/$/, '');
-    const videosTabUrl = `${baseChannelUrl}/videos`;
-
-    try {
-        // FIX: playlist-end 0 hatası playlist-items 0 ile düzeltildi
-        const metaArgs = ['--dump-single-json', '--playlist-items', '0', baseChannelUrl];
-        const videoArgs = ['--flat-playlist', '--dump-single-json', videosTabUrl];
-
-        // Performans için paralel işlem katmanı korundu
-        const [metaOutput, videoOutput] = await Promise.all([
-            runYtDlp(metaArgs).catch(err => {
-                console.warn('Meta fallback devreye girdi:', err.message);
-                return null;
-            }),
-            runYtDlp(videoArgs)
+        // En hızlı veri okuma parametreleri ayarlandı
+        let stdout = await ytDlpWrap.execPromise([
+            targetYoutubeUrl,
+            '--dump-single-json',
+            '--playlist-end', '50',
+            '--no-warnings',
+            '--no-check-certificates',
+            '--flat-playlist',
+            '--extractor-args', 'youtube:player_client=web'
         ]);
 
-        if (!videoOutput || !videoOutput.entries) {
-            throw new Error('Kanalın videoları YouTube katmanından çekilemedi.');
+        const ytData = JSON.parse(stdout);
+
+        // 3. ADIM: Üst Düzey Meta Veri Ayıklama
+        const channelName = ytData.title || ytData.uploader || handle;
+        const description = ytData.description || 'Açıklama Belirtilmemiş.';
+        
+        let subscriberCount = 'Gizli';
+        const followers = ytData.channel_follower_count || ytData.entries?.[0]?.channel_follower_count;
+        if (followers) {
+            if (followers >= 1000000) {
+                subscriberCount = `${(followers / 1000000).toFixed(1)} Mn abone`;
+            } else if (followers >= 1000) {
+                subscriberCount = `${(followers / 1000).toFixed(1)} B abone`;
+            } else {
+                subscriberCount = `${followers} abone`;
+            }
         }
 
-        const videos = videoOutput.entries.map(entry => ({
-            id: entry.id,
-            title: entry.title || 'Başlıksız Video',
-            thumbnail: `https://i.ytimg.com/vi/${entry.id}/hqdefault.jpg`
-        }));
+        // 4. ADIM: Videoları eksiksiz array'e map'leme
+        const videos = [];
+        if (ytData.entries) {
+            ytData.entries.forEach(entry => {
+                if (entry) {
+                    const videoId = entry.id || entry.url;
+                    const thumbnail = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+                    
+                    const views = entry.view_count 
+                        ? `${entry.view_count.toLocaleString('tr-TR')} izlenme` 
+                        : '0 izlenme';
 
-        const activeMeta = metaOutput || videoOutput;
-        let subscriberCount = 'Gizli/Yok';
-        if (activeMeta.channel_follower_count) {
-            subscriberCount = activeMeta.channel_follower_count.toLocaleString('tr-TR');
-        } else if (activeMeta.subscriber_count) {
-            subscriberCount = activeMeta.subscriber_count.toLocaleString('tr-TR');
+                    let dateStr = 'Yeni';
+                    if (entry.upload_date) {
+                        const y = entry.upload_date.slice(0, 4);
+                        const m = entry.upload_date.slice(4, 6);
+                        const d = entry.upload_date.slice(6, 8);
+                        dateStr = `${d}.${m}.${y}`;
+                    }
+
+                    videos.push({
+                        videoId,
+                        title: entry.title || 'Başlıksız Video',
+                        thumbnail,
+                        viewCount: views,
+                        publishedTime: dateStr,
+                        url: `https://www.youtube.com/watch?v=${videoId}`
+                    });
+                }
+            });
         }
 
-        let avatarUrl = 'https://www.youtube.com/s/desktop/2df1f206/img/avatar_placeholder_dark.png';
-        if (activeMeta.thumbnails && activeMeta.thumbnails.length > 0) {
-            const avatarThumb = activeMeta.thumbnails.find(t => t.id === 'avatar') || activeMeta.thumbnails[activeMeta.thumbnails.length - 1];
-            if (avatarThumb && avatarThumb.url) avatarUrl = avatarThumb.url;
-        }
-
-        res.json({
-            success: true,
-            channel_info: {
-                title: activeMeta.title || videoOutput.title || 'YouTube Kanalı',
-                description: activeMeta.description || 'Açıklama bulunamadı.',
-                subscriber_count: subscriberCount,
-                total_videos_count: videos.length,
-                avatar: avatarUrl
-            },
+        return res.json({
+            channelName,
+            description,
+            subscriberCount,
+            estimatedLoadedVideoCount: videos.length,
             videos
         });
-    } catch (e) {
-        console.error('Kritik Kanal Hatası:', e.message);
-        res.status(500).json({ detail: 'Sistem hatası: ' + e.message });
+
+    } catch (error) {
+        console.error("Scrape Engine Critical Error:", error);
+        return res.status(500).json({ error: 'Mühendislik Hatası: ' + error.message });
     }
 });
 
-// 2. ENDPOINT: VİDEO METRİKLERİ VE ANALİZİ (HIZLANDIRILMIŞ VE BULUT OYUNU GEÇEN YAPILANDIRMA)
-app.post('/api/v1/video/analyze', async (req, res) => {
-    const { video_id } = req.body;
-    if (!video_id) return res.status(400).json({ detail: 'video_id zorunlu.' });
-
-    try {
-        const videoUrl = `https://www.youtube.com/watch?v=${video_id}`;
-        // --skip-download zaten dump-json içinde var, ek hafiflik için format sorgusunu pas geçiyoruz
-        const args = ['--dump-json', videoUrl];
-        
-        const output = await runYtDlp(args);
-
-        const views = output.view_count || 0;
-        const likes = output.like_count || 0;
-        const comments = output.comment_count || 0;
-        
-        let duration = 'Bilinmiyor';
-        if (output.duration) {
-            const sec = parseInt(output.duration);
-            duration = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
-        }
-
-        const eng = views > 0 ? parseFloat((((likes + comments) / views) * 100).toFixed(2)) : 0;
-        const score = eng >= 6 ? 'Efsanevi' : eng >= 3 ? 'Yüksek' : eng >= 1 ? 'Normal' : 'Düşük';
-
-        res.json({
-            success: true,
-            video_info: {
-                title: output.title || 'Video Başlığı',
-                description: (output.description || 'Açıklama yok.').substring(0, 150) + '...',
-                view_count: views.toLocaleString('tr-TR'),
-                like_count: likes > 0 ? likes.toLocaleString('tr-TR') : 'Gizli/Yok',
-                total_comments: comments > 0 ? comments.toLocaleString('tr-TR') : 'Gizli/Yok',
-                duration,
-                thumbnail: output.thumbnail || `https://i.ytimg.com/vi/${video_id}/mqdefault.jpg`,
-                analysis: { engagement_rate: `%${eng}`, score }
-            }
-        });
-    } catch (e) {
-        console.error('yt-dlp Video Hatası:', e.message);
-        res.status(500).json({ detail: 'Video verileri çekilemedi (YouTube Engeli): ' + e.message });
-    }
-});
-
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 [Aerys Engine v2] Sürat Modu Aktif. Port: ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
